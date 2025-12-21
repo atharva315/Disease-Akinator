@@ -141,7 +141,7 @@ if not st.session_state.done:
                 st.session_state.final_disease = best_disease
                 st.session_state.final_confidence = best_prob
 
-            st.experimental_rerun()
+            st.rerun()
 
 # =====================================================
 # FINAL RESULT SCREEN
@@ -174,4 +174,4 @@ else:
         st.session_state.asked = []
         st.session_state.done = False
         st.session_state.possible_mask = np.ones(NUM_FEATURES, dtype=bool)
-        st.experimental_rerun()
+        st.rerun()
