@@ -149,7 +149,7 @@ elif st.session_state.show_checkpoint and not st.session_state.done:
     probs = st.session_state.final_probs
     idx = probs.argmax()
 
-    st.markdown("## 🤔 Best guess so far")
+    st.markdown("##  Best guess so far")
     st.markdown(f"""
     <div style="background:#fff3e0;padding:1.5rem;border-radius:1rem;text-align:center;">
     <h2>{model.classes_[idx]}</h2>
@@ -159,12 +159,12 @@ elif st.session_state.show_checkpoint and not st.session_state.done:
 
     st.markdown("### Are you satisfied with this answer?")
 
-    if st.button("✅ Yes, this is correct", use_container_width=True):
+    if st.button(" Yes, this is correct", use_container_width=True):
         st.session_state.done = True
         st.session_state.show_checkpoint = False
         st.rerun()
 
-    if st.button("🔁 No, continue asking questions", use_container_width=True):
+    if st.button(" No, continue to Diagnosis", use_container_width=True):
         st.session_state.round_questions = 0
         st.session_state.show_checkpoint = False
         st.rerun()
@@ -176,7 +176,7 @@ else:
     probs = st.session_state.final_probs
     order = probs.argsort()[::-1]
 
-    st.markdown("## 🎯 I’ve got it!")
+    st.markdown("##  I’ve got it!")
     st.markdown(f"""
     <div style="background:#e8f5e9;padding:1.5rem;border-radius:1rem;text-align:center;">
     <h2>{model.classes_[order[0]]}</h2>
@@ -184,9 +184,9 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    st.warning("⚠️ This is for educational purposes only.")
+    st.warning( "⚠️ This prediction is for educational purposes only. " "Please consult a medical professional." )
 
-    if st.button("🔁 Start New Diagnosis", use_container_width=True):
+    if st.button(" Start New Diagnosis", use_container_width=True):
         st.session_state.clear()
         st.rerun()
 
