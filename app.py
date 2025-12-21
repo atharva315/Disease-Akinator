@@ -10,7 +10,43 @@ st.set_page_config(
     page_icon="🧞",
     layout="centered"
 )
+# =====================================================
+# THEME STATE (LIGHT BY DEFAULT)
+# =====================================================
+if "theme" not in st.session_state:
+    st.session_state.theme = "light"
 
+# Sidebar toggle
+with st.sidebar:
+    st.markdown("## 🎨 Theme")
+    theme_choice = st.radio(
+        "Choose mode:",
+        ["Light", "Dark"],
+        index=0
+    )
+    st.session_state.theme = theme_choice.lower()
+
+# =====================================================
+# THEME STYLES
+# =====================================================
+if st.session_state.theme == "dark":
+    st.markdown("""
+        <style>
+        body, .stApp {
+            background-color: #0e1117;
+            color: #fafafa;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+        <style>
+        body, .stApp {
+            background-color: #ffffff;
+            color: #000000;
+        }
+        </style>
+    """, unsafe_allow_html=True)
 # =====================================================
 # LOAD MODEL FILES (CACHED)
 # =====================================================
@@ -23,7 +59,7 @@ def load_assets():
 model, features = load_assets()
 
 NUM_FEATURES = len(features)
-CONFIDENCE_THRESHOLD = 0.95
+CONFIDENCE_THRESHOLD = 0.80
 
 # =====================================================
 # SESSION STATE
@@ -60,8 +96,8 @@ def select_next_question():
 def update_user_state(idx, answer):
     mapping = {
         "Yes": 1.0,
-        "Probably": 0.75,
-        "Probably Not": 0.25,
+        "Probably": 0.8,
+        "Probably Not": 0.2,
         "No": 0.0
     }
     st.session_state.user_state[0, idx] = mapping[answer]
@@ -91,7 +127,7 @@ if not st.session_state.done:
                 font-size:1.2rem;
                 font-weight:600;
             ">
-            Do you have <span style="color:#e53935;">{question}</span>?
+            <span style="color:#e53935;">Are you suffering with {question}</span>?
             </div>
             """,
             unsafe_allow_html=True
@@ -100,13 +136,13 @@ if not st.session_state.done:
         st.markdown("<br>", unsafe_allow_html=True)
 
         # Buttons (mobile-safe)
-        if st.button("✅ Yes", use_container_width=True):
+        if st.button(" Yes", use_container_width=True):
             answer = "Yes"
-        elif st.button("🤔 Probably", use_container_width=True):
+        elif st.button(" Probably", use_container_width=True):
             answer = "Probably"
-        elif st.button("😐 Probably Not", use_container_width=True):
+        elif st.button(" Probably Not", use_container_width=True):
             answer = "Probably Not"
-        elif st.button("❌ No", use_container_width=True):
+        elif st.button(" No", use_container_width=True):
             answer = "No"
         else:
             answer = None
