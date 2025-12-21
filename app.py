@@ -10,6 +10,7 @@ st.set_page_config(
     page_icon="🧞",
     layout="centered"
 )
+
 # =====================================================
 # THEME STATE (LIGHT BY DEFAULT)
 # =====================================================
@@ -47,6 +48,39 @@ else:
         }
         </style>
     """, unsafe_allow_html=True)
+
+# =====================================================
+# 🔥 BUTTON UI FIX (THIS IS THE IMPORTANT PART)
+# =====================================================
+st.markdown("""
+<style>
+/* Fix all Streamlit buttons */
+div.stButton > button {
+    background-color: #f5f5f5 !important;   /* light grey */
+    color: #000000 !important;              /* black text */
+    border: 2px solid #cfcfcf !important;   /* visible border */
+    border-radius: 14px !important;
+    padding: 14px !important;
+    font-size: 18px !important;
+    font-weight: 500 !important;
+}
+
+/* Hover effect */
+div.stButton > button:hover {
+    background-color: #e9e9e9 !important;
+    border-color: #9e9e9e !important;
+}
+
+/* Mobile fix */
+@media (max-width: 600px) {
+    div.stButton > button {
+        font-size: 16px !important;
+        padding: 12px !important;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
+
 # =====================================================
 # LOAD MODEL FILES (CACHED)
 # =====================================================
@@ -59,7 +93,7 @@ def load_assets():
 model, features = load_assets()
 
 NUM_FEATURES = len(features)
-CONFIDENCE_THRESHOLD = 0.80
+CONFIDENCE_THRESHOLD = 0.90
 
 # =====================================================
 # SESSION STATE
@@ -135,7 +169,6 @@ if not st.session_state.done:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Buttons (mobile-safe)
         if st.button(" Yes", use_container_width=True):
             answer = "Yes"
         elif st.button(" Probably", use_container_width=True):
@@ -162,7 +195,7 @@ if not st.session_state.done:
             st.rerun()
 
 # =====================================================
-# FINAL RESULT SCREEN (RESPONSIVE)
+# FINAL RESULT SCREEN
 # =====================================================
 else:
     probs = st.session_state.final_probs
@@ -170,7 +203,6 @@ else:
 
     st.markdown("## 🎯 I’ve got it!")
 
-    # MAIN PREDICTION
     st.markdown(
         f"""
         <div style="
@@ -180,7 +212,7 @@ else:
             text-align:center;
             margin-bottom:1rem;
         ">
-        <h2 style="margin-bottom:0.5rem;">{model.classes_[sorted_idx[0]]}</h2>
+        <h2>{model.classes_[sorted_idx[0]]}</h2>
         <h3 style="color:#2e7d32;">
             Confidence: {probs[sorted_idx[0]]*100:.2f}%
         </h3>
@@ -189,7 +221,6 @@ else:
         unsafe_allow_html=True
     )
 
-    # NEXT 2 POSSIBILITIES
     st.markdown("### 🔎 Other Possible Matches")
     for i in sorted_idx[1:3]:
         st.markdown(
