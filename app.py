@@ -12,6 +12,44 @@ st.set_page_config(
 )
 
 # =====================================================
+# THEME STATE (LIGHT BY DEFAULT)
+# =====================================================
+if "theme" not in st.session_state:
+    st.session_state.theme = "light"
+
+# Sidebar toggle
+with st.sidebar:
+    st.markdown("## 🎨 Theme")
+    theme_choice = st.radio(
+        "Choose mode:",
+        ["Light", "Dark"],
+        index=0
+    )
+    st.session_state.theme = theme_choice.lower()
+
+# =====================================================
+# THEME STYLES
+# =====================================================
+if st.session_state.theme == "dark":
+    st.markdown("""
+        <style>
+        body, .stApp {
+            background-color: #0e1117;
+            color: #fafafa;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
+        <style>
+        body, .stApp {
+            background-color: #ffffff;
+            color: #000000;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+# =====================================================
 # LOAD MODEL FILES (CACHED)
 # =====================================================
 @st.cache_resource
@@ -35,17 +73,19 @@ if "user_state" not in st.session_state:
     st.session_state.possible_mask = np.ones(NUM_FEATURES, dtype=bool)
 
 # =====================================================
-# HEADER
+# HEADER + GENIE
 # =====================================================
-st.markdown(
-    "<h1 style='text-align:center;'>🧞 Disease Akinator</h1>",
-    unsafe_allow_html=True
-)
+st.markdown("<h1 style='text-align:center;'>🧞 Disease Akinator</h1>", unsafe_allow_html=True)
 st.markdown(
     "<p style='text-align:center; font-size:1rem;'>"
     "Answer the questions and I will guess your disease.</p>",
     unsafe_allow_html=True
 )
+
+# Genie animation (only while playing)
+if not st.session_state.done:
+    st.image("genie.gif", use_column_width=True)
+
 st.markdown("---")
 
 # =====================================================
@@ -67,9 +107,8 @@ def update_user_state(idx, answer):
     st.session_state.user_state[0, idx] = mapping[answer]
     st.session_state.possible_mask[idx] = answer in ["Yes", "Probably"]
 
-def check_prediction():
-    probs = model.predict_proba(st.session_state.user_state)[0]
-    return probs
+def get_probs():
+    return model.predict_proba(st.session_state.user_state)[0]
 
 # =====================================================
 # MAIN FLOW
@@ -91,7 +130,7 @@ if not st.session_state.done:
                 font-size:1.2rem;
                 font-weight:600;
             ">
-            <span style="color:#e53935;">Do you have {question}</span>?
+            <span style="color:#e53935;">Are you suffering with {question}</span>?
             </div>
             """,
             unsafe_allow_html=True
@@ -99,7 +138,6 @@ if not st.session_state.done:
 
         st.markdown("<br>", unsafe_allow_html=True)
 
-        # Buttons (mobile-safe)
         if st.button("✅ Yes", use_container_width=True):
             answer = "Yes"
         elif st.button("🤔 Probably", use_container_width=True):
@@ -115,26 +153,24 @@ if not st.session_state.done:
             update_user_state(q_index, answer)
             st.session_state.asked.append(question)
 
-            probs = check_prediction()
-            best_idx = probs.argmax()
-            best_prob = probs[best_idx]
+            probs = get_probs()
+            best_prob = probs.max()
 
             if best_prob >= CONFIDENCE_THRESHOLD:
-                st.session_state.done = True
                 st.session_state.final_probs = probs
+                st.session_state.done = True
 
             st.rerun()
 
 # =====================================================
-# FINAL RESULT SCREEN (RESPONSIVE)
+# FINAL RESULT
 # =====================================================
 else:
     probs = st.session_state.final_probs
-    sorted_idx = probs.argsort()[::-1]
+    order = probs.argsort()[::-1]
 
     st.markdown("## 🎯 I’ve got it!")
 
-    # MAIN PREDICTION
     st.markdown(
         f"""
         <div style="
@@ -144,18 +180,15 @@ else:
             text-align:center;
             margin-bottom:1rem;
         ">
-        <h2 style="margin-bottom:0.5rem;">{model.classes_[sorted_idx[0]]}</h2>
-        <h3 style="color:#2e7d32;">
-            Confidence: {probs[sorted_idx[0]]*100:.2f}%
-        </h3>
+        <h2>{model.classes_[order[0]]}</h2>
+        <h3>Confidence: {probs[order[0]]*100:.2f}%</h3>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    # NEXT 2 POSSIBILITIES
     st.markdown("### 🔎 Other Possible Matches")
-    for i in sorted_idx[1:3]:
+    for i in order[1:3]:
         st.markdown(
             f"""
             <div style="
@@ -177,8 +210,6 @@ else:
     )
 
     if st.button("🔁 Start New Diagnosis", use_container_width=True):
-        st.session_state.user_state = np.zeros((1, NUM_FEATURES))
-        st.session_state.asked = []
-        st.session_state.done = False
-        st.session_state.possible_mask = np.ones(NUM_FEATURES, dtype=bool)
+        for k in ["user_state", "asked", "done", "possible_mask"]:
+            st.session_state.pop(k, None)
         st.rerun()
