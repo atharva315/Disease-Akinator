@@ -12,7 +12,7 @@ st.set_page_config(
 )
 
 MAX_QUESTIONS = 25
-CONFIDENCE_THRESHOLD = 0.90
+CONFIDENCE_THRESHOLD = 0.87
 
 # =====================================================
 # THEME STATE
