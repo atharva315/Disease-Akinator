@@ -91,7 +91,7 @@ if not st.session_state.done:
                 font-size:1.2rem;
                 font-weight:600;
             ">
-            Do you have <span style="color:#e53935;">{question}</span>?
+            <span style="color:#e53935;">Do you have {question}</span>?
             </div>
             """,
             unsafe_allow_html=True
