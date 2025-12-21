@@ -62,7 +62,6 @@ def check_prediction():
 # Progress bar
 # -----------------------------
 progress = min(len(st.session_state.asked) / MAX_QUESTIONS, 1.0)
-st.progress(progress)
 
 # -----------------------------
 # Main Akinator logic
@@ -85,8 +84,6 @@ if not st.session_state.done:
         st.session_state.asked.append(question)
 
         probs, best_prob, best_disease = check_prediction()
-
-        st.info(f"🤔 Thinking... Current guess: **{best_disease}** ({best_prob*100:.2f}%)")
 
         if best_prob >= CONFIDENCE_THRESHOLD or len(st.session_state.asked) >= MAX_QUESTIONS:
             st.session_state.done = True
