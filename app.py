@@ -7,50 +7,72 @@ import joblib
 # =====================================================
 st.set_page_config(
     page_title="Disease Akinator",
-    page_icon="🧞",
+    page_icon="🧠",
     layout="centered"
 )
 
 # =====================================================
-# THEME STATE (LIGHT BY DEFAULT)
+# GLOBAL CSS (CLEAN AKINATOR STYLE)
 # =====================================================
-if "theme" not in st.session_state:
-    st.session_state.theme = "light"
+st.markdown("""
+<style>
+/* Background */
+.stApp {
+    background-color: #ffffff;
+}
 
-# Sidebar toggle
-with st.sidebar:
-    st.markdown("## 🎨 Theme")
-    theme_choice = st.radio(
-        "Choose mode:",
-        ["Light", "Dark"],
-        index=0
-    )
-    st.session_state.theme = theme_choice.lower()
+/* Question card */
+.question-card {
+    background-color: #f5f6fa;
+    padding: 25px;
+    border-radius: 18px;
+    text-align: center;
+    font-size: 22px;
+    font-weight: 600;
+    margin-bottom: 25px;
+}
+
+/* Highlight symptom */
+.symptom {
+    color: #ff3b3b;
+}
+
+/* Answer buttons */
+.answer-btn button {
+    background-color: #0f1115 !important;
+    color: white !important;
+    font-size: 18px !important;
+    padding: 14px !important;
+    border-radius: 14px !important;
+    border: none !important;
+    width: 100% !important;
+}
+
+/* Hover effect */
+.answer-btn button:hover {
+    background-color: #1c1f26 !important;
+}
+
+/* Result card */
+.result-card {
+    background-color: #e8f5e9;
+    padding: 30px;
+    border-radius: 18px;
+    text-align: center;
+}
+
+/* Mobile fix */
+@media (max-width: 600px) {
+    .question-card {
+        font-size: 18px;
+        padding: 20px;
+    }
+}
+</style>
+""", unsafe_allow_html=True)
 
 # =====================================================
-# THEME STYLES
-# =====================================================
-if st.session_state.theme == "dark":
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #0e1117;
-            color: #fafafa;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-else:
-    st.markdown("""
-        <style>
-        body, .stApp {
-            background-color: #ffffff;
-            color: #000000;
-        }
-        </style>
-    """, unsafe_allow_html=True)
-
-# =====================================================
-# LOAD MODEL FILES (CACHED)
+# LOAD MODEL FILES
 # =====================================================
 @st.cache_resource
 def load_assets():
@@ -70,30 +92,24 @@ if "user_state" not in st.session_state:
     st.session_state.user_state = np.zeros((1, NUM_FEATURES))
     st.session_state.asked = []
     st.session_state.done = False
-    st.session_state.possible_mask = np.ones(NUM_FEATURES, dtype=bool)
 
 # =====================================================
-# HEADER + GENIE
+# HEADER
 # =====================================================
-st.markdown("<h1 style='text-align:center;'>🧞 Disease Akinator</h1>", unsafe_allow_html=True)
-st.markdown(
-    "<p style='text-align:center; font-size:1rem;'>"
-    "Answer the questions and I will guess your disease.</p>",
-    unsafe_allow_html=True
-)
-
-# Genie animation (only while playing)
-if not st.session_state.done:
-    st.image("genie.gif", use_column_width=True)
-
-st.markdown("---")
+st.markdown("""
+<div style="display:flex; justify-content:center; align-items:center; gap:10px;">
+    <h1>Disease Akinator</h1>
+</div>
+<p style="text-align:center;">Answer the questions and I will guess your disease.</p>
+<hr>
+""", unsafe_allow_html=True)
 
 # =====================================================
 # HELPER FUNCTIONS
 # =====================================================
 def select_next_question():
     for i, f in enumerate(features):
-        if f not in st.session_state.asked and st.session_state.possible_mask[i]:
+        if f not in st.session_state.asked:
             return i, f
     return None, None
 
@@ -105,7 +121,6 @@ def update_user_state(idx, answer):
         "No": 0.0
     }
     st.session_state.user_state[0, idx] = mapping[answer]
-    st.session_state.possible_mask[idx] = answer in ["Yes", "Probably"]
 
 def get_probs():
     return model.predict_proba(st.session_state.user_state)[0]
@@ -120,34 +135,35 @@ if not st.session_state.done:
     if question is None:
         st.session_state.done = True
     else:
+        # Question card
         st.markdown(
             f"""
-            <div style="
-                background:#f4f6fb;
-                padding:1.5rem;
-                border-radius:1rem;
-                text-align:center;
-                font-size:1.2rem;
-                font-weight:600;
-            ">
-            <span style="color:#e53935;">Are you suffering with {question}</span>?
+            <div class="question-card">
+                Are you suffering with
+                <span class="symptom">{question}</span>?
             </div>
             """,
             unsafe_allow_html=True
         )
 
-        st.markdown("<br>", unsafe_allow_html=True)
+        # Answer buttons (BLACK, CLEAR TEXT)
+        col1 = st.container()
+        with col1:
+            if st.markdown('<div class="answer-btn">', unsafe_allow_html=True):
+                pass
 
-        if st.button("✅ Yes", use_container_width=True):
-            answer = "Yes"
-        elif st.button("🤔 Probably", use_container_width=True):
-            answer = "Probably"
-        elif st.button("😐 Probably Not", use_container_width=True):
-            answer = "Probably Not"
-        elif st.button("❌ No", use_container_width=True):
-            answer = "No"
-        else:
-            answer = None
+            if st.button("Yes"):
+                answer = "Yes"
+            elif st.button("Probably"):
+                answer = "Probably"
+            elif st.button("Probably Not"):
+                answer = "Probably Not"
+            elif st.button("No"):
+                answer = "No"
+            else:
+                answer = None
+
+            st.markdown('</div>', unsafe_allow_html=True)
 
         if answer:
             update_user_state(q_index, answer)
@@ -173,43 +189,25 @@ else:
 
     st.markdown(
         f"""
-        <div style="
-            background:#e8f5e9;
-            padding:1.5rem;
-            border-radius:1rem;
-            text-align:center;
-            margin-bottom:1rem;
-        ">
-        <h2>{model.classes_[order[0]]}</h2>
-        <h3>Confidence: {probs[order[0]]*100:.2f}%</h3>
+        <div class="result-card">
+            <h2>{model.classes_[order[0]]}</h2>
+            <h3>Confidence: {probs[order[0]]*100:.2f}%</h3>
         </div>
         """,
         unsafe_allow_html=True
     )
 
-    st.markdown("### 🔎 Other Possible Matches")
+    st.markdown("### Other Possible Matches")
     for i in order[1:3]:
         st.markdown(
-            f"""
-            <div style="
-                background:#f1f1f1;
-                padding:1rem;
-                border-radius:0.75rem;
-                margin-bottom:0.5rem;
-            ">
-            <strong>{model.classes_[i]}</strong><br>
-            Confidence: {probs[i]*100:.2f}%
-            </div>
-            """,
-            unsafe_allow_html=True
+            f"- **{model.classes_[i]}** : {probs[i]*100:.2f}%"
         )
 
     st.warning(
-        "⚠️ This prediction is for educational purposes only. "
+        "This prediction is for educational purposes only. "
         "Please consult a medical professional."
     )
 
-    if st.button("🔁 Start New Diagnosis", use_container_width=True):
-        for k in ["user_state", "asked", "done", "possible_mask"]:
-            st.session_state.pop(k, None)
+    if st.button("Start New Diagnosis"):
+        st.session_state.clear()
         st.rerun()
