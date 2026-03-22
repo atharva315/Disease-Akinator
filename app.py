@@ -2,7 +2,7 @@ import streamlit as st
 import numpy as np
 import joblib
 from PIL import Image
-import tensorflow as tf
+import tensorflow as tf   
 
 # =====================================================
 # PAGE CONFIG
@@ -320,15 +320,15 @@ def page_symptom():
 # HELPER — Image Preprocessing & Prediction
 # =====================================================
 def preprocess_image(pil_image):
-    """Resize and normalise a PIL image for ResNet50 input."""
     img = pil_image.convert("RGB").resize((224, 224))
-    arr = np.array(img, dtype=np.float32) / 255.0
-    return np.expand_dims(arr, axis=0)   # shape: (1, 224, 224, 3)
+    arr = np.array(img, dtype=np.float32)
+    arr = np.expand_dims(arr, axis=0)
+    arr = tf.keras.applications.resnet50.preprocess_input(arr)
+    return arr
 
 def predict_skin(pil_image, skin_model, class_names, top_k=5):
-    """Return top-K (disease_name, confidence%) predictions."""
-    arr   = preprocess_image(pil_image)
-    probs = skin_model.predict(arr, verbose=0)[0]
+    arr = preprocess_image(pil_image)
+    probs = skin_model(tf.constant(arr), training=False).numpy()[0]
     top_idx = probs.argsort()[::-1][:top_k]
     return [(class_names[i], float(probs[i])) for i in top_idx]
 
