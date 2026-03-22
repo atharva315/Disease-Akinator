@@ -15,7 +15,7 @@ st.set_page_config(
 # CONSTANTS
 # =====================================================
 MAX_QUESTIONS = 25
-CONFIDENCE_THRESHOLD = 0.87
+CONFIDENCE_THRESHOLD = 0.90
 
 # =====================================================
 # GLOBAL CSS
