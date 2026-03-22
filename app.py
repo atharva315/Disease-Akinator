@@ -364,7 +364,7 @@ def page_image():
             st.image(pil_image, caption="Uploaded Image", use_container_width=True)
         with col_info:
             st.markdown(f"""
-            <div style="background:#f4f6fb; padding:14px; border-radius:10px; font-size:13px;">
+            <div style="background:#f4f6fb; padding:14px; border-radius:10px; font-size:13px; color:#1a1a1a;">
                 <b>File:</b> {uploaded_file.name}<br>
                 <b>Size:</b> {pil_image.size[0]} × {pil_image.size[1]} px<br>
                 <b>Model:</b> ResNet50 (DermNet NZ)<br>
