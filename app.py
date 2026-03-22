@@ -384,10 +384,10 @@ def page_image():
             conf_color = "#e8f5e9" if top_conf >= 0.6 else "#fff3e0" if top_conf >= 0.35 else "#fce4ec"
             st.markdown(f"""
             <div style="background:{conf_color}; padding:1.5rem; border-radius:1rem;
-                        text-align:center; margin:16px 0;">
+                        text-align:center; margin:16px 0; color:#1a1a1a;">
                 <div style="font-size:14px; color:#555; margin-bottom:4px;">Primary Prediction</div>
-                <h2 style="margin:0;">🩺 {top_name}</h2>
-                <h3 style="margin:6px 0 0;">Confidence: {top_conf*100:.1f}%</h3>
+                <h2 style="margin:0; color:#1a1a1a;">🩺 {top_name}</h2>
+                <h3 style="margin:6px 0 0; color:#1a1a1a;">Confidence: {top_conf*100:.1f}%</h3>
             </div>
             """, unsafe_allow_html=True)
 
