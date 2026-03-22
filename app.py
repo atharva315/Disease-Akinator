@@ -1,6 +1,8 @@
 import streamlit as st
 import numpy as np
 import joblib
+from PIL import Image
+import tensorflow as tf
 
 # =====================================================
 # PAGE CONFIG
@@ -15,7 +17,7 @@ st.set_page_config(
 # CONSTANTS
 # =====================================================
 MAX_QUESTIONS = 25
-CONFIDENCE_THRESHOLD = 0.90
+CONFIDENCE_THRESHOLD = 0.87
 
 # =====================================================
 # GLOBAL CSS
@@ -94,6 +96,15 @@ def load_symptom_assets():
     return model, features
 
 # =====================================================
+# LOAD SKIN CNN MODEL ASSETS
+# =====================================================
+@st.cache_resource
+def load_skin_assets():
+    skin_model   = tf.keras.models.load_model("skin_model.h5")
+    class_names  = joblib.load("class_names.pkl")
+    return skin_model, class_names
+
+# =====================================================
 # SESSION STATE INIT
 # =====================================================
 def init_session():
@@ -158,7 +169,7 @@ def page_home():
         st.markdown("""
         <div class="section-card">
             <div class="section-icon">🔬</div>
-            <div class="badge-soon">Coming Soon</div>
+            <div class="badge-done">✓ Available</div>
             <div class="section-title">Skin Disease Scanner</div>
             <div class="section-desc">Upload a photo of a skin condition and our CNN model will classify the disease.</div>
         </div>
@@ -306,7 +317,23 @@ def page_symptom():
             st.rerun()
 
 # =====================================================
-# PAGE: IMAGE CLASSIFICATION (placeholder — Part 2)
+# HELPER — Image Preprocessing & Prediction
+# =====================================================
+def preprocess_image(pil_image):
+    """Resize and normalise a PIL image for ResNet50 input."""
+    img = pil_image.convert("RGB").resize((224, 224))
+    arr = np.array(img, dtype=np.float32) / 255.0
+    return np.expand_dims(arr, axis=0)   # shape: (1, 224, 224, 3)
+
+def predict_skin(pil_image, skin_model, class_names, top_k=5):
+    """Return top-K (disease_name, confidence%) predictions."""
+    arr   = preprocess_image(pil_image)
+    probs = skin_model.predict(arr, verbose=0)[0]
+    top_idx = probs.argsort()[::-1][:top_k]
+    return [(class_names[i], float(probs[i])) for i in top_idx]
+
+# =====================================================
+# PAGE: IMAGE CLASSIFICATION — Section 2 (LIVE)
 # =====================================================
 def page_image():
     if st.button("← Back to Home"):
@@ -314,29 +341,90 @@ def page_image():
         st.rerun()
 
     st.markdown("<h2 style='text-align:center;'>🔬 Skin Disease Scanner</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align:center; color:#666;'>Upload a clear photo of the affected skin area.</p>",
+                unsafe_allow_html=True)
     st.markdown("---")
 
-    st.info("🚧 **Coming Soon!** The CNN-based image classification module is currently being trained. Check back soon.")
+    # Load model
+    with st.spinner("Loading skin disease model..."):
+        skin_model, class_names = load_skin_assets()
 
-    st.markdown("""
-    <div style="text-align:center; padding:40px; background:#f8f9fa; border-radius:16px; margin-top:20px;">
-        <div style="font-size:60px;">🔬</div>
-        <h3 style="color:#888;">Image Classification Module</h3>
-        <p style="color:#aaa; font-size:14px;">
-            Upload a skin image → ResNet50 CNN → Disease prediction<br>
-            Trained on DermNet NZ dataset (23 classes, 19,500 images)
-        </p>
-    </div>
-    """, unsafe_allow_html=True)
+    # Upload widget
+    uploaded_file = st.file_uploader(
+        "Upload skin image (JPG / PNG)",
+        type=["jpg", "jpeg", "png"],
+        help="Take a clear, well-lit photo of the skin condition."
+    )
 
-    # --- This section will be activated in Part 2 ---
-    # uploaded_file = st.file_uploader("Upload skin image", type=["jpg","jpeg","png"])
-    # if uploaded_file:
-    #     image = Image.open(uploaded_file)
-    #     st.image(image, caption="Uploaded Image", use_column_width=True)
-    #     if st.button("Classify Disease"):
-    #         result = classify_skin_image(image)
-    #         st.success(f"Predicted: {result}")
+    if uploaded_file is not None:
+        pil_image = Image.open(uploaded_file)
+
+        # Show uploaded image
+        col_img, col_info = st.columns([1, 1])
+        with col_img:
+            st.image(pil_image, caption="Uploaded Image", use_container_width=True)
+        with col_info:
+            st.markdown(f"""
+            <div style="background:#f4f6fb; padding:14px; border-radius:10px; font-size:13px;">
+                <b>File:</b> {uploaded_file.name}<br>
+                <b>Size:</b> {pil_image.size[0]} × {pil_image.size[1]} px<br>
+                <b>Model:</b> ResNet50 (DermNet NZ)<br>
+                <b>Classes:</b> {len(class_names)} skin conditions
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("🔬 Classify Disease", use_container_width=True):
+            with st.spinner("Analysing image..."):
+                results = predict_skin(pil_image, skin_model, class_names, top_k=5)
+
+            top_name, top_conf = results[0]
+
+            # Primary result card
+            conf_color = "#e8f5e9" if top_conf >= 0.6 else "#fff3e0" if top_conf >= 0.35 else "#fce4ec"
+            st.markdown(f"""
+            <div style="background:{conf_color}; padding:1.5rem; border-radius:1rem;
+                        text-align:center; margin:16px 0;">
+                <div style="font-size:14px; color:#555; margin-bottom:4px;">Primary Prediction</div>
+                <h2 style="margin:0;">🩺 {top_name}</h2>
+                <h3 style="margin:6px 0 0;">Confidence: {top_conf*100:.1f}%</h3>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Top 5 bar chart
+            st.markdown("#### Top 5 Predictions")
+            for name, conf in results:
+                bar_color = "#4caf50" if conf == top_conf else "#90caf9"
+                st.markdown(f"""
+                <div style="margin-bottom:8px;">
+                    <div style="display:flex; justify-content:space-between;
+                                font-size:13px; margin-bottom:3px;">
+                        <span>{name}</span>
+                        <span><b>{conf*100:.1f}%</b></span>
+                    </div>
+                    <div style="background:#eee; border-radius:6px; height:10px;">
+                        <div style="background:{bar_color}; width:{conf*100:.1f}%;
+                                    height:10px; border-radius:6px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.warning("⚠️ This is for educational purposes only. Always consult a qualified dermatologist.")
+
+    else:
+        # Empty state
+        st.markdown("""
+        <div style="text-align:center; padding:50px; background:#f8f9fa;
+                    border-radius:16px; margin-top:10px;">
+            <div style="font-size:56px;">📷</div>
+            <h3 style="color:#888; margin-top:12px;">No image uploaded yet</h3>
+            <p style="color:#aaa; font-size:14px;">
+                Supported conditions: Acne, Eczema, Psoriasis, Melanoma,<br>
+                Rosacea, Tinea, Urticaria and 16 more skin diseases.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
 # =====================================================
 # PAGE: DOCTOR PORTAL (placeholder — Part 3)
