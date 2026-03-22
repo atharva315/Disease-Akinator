@@ -91,8 +91,7 @@ div.stButton > button:hover {
 def load_symptom_assets():
     model = joblib.load("final_ensemble.pkl")
     features = joblib.load("feature_names.pkl")
-    imputer = joblib.load("imputer.pkl")
-    return model, features, imputer
+    return model, features
 
 # =====================================================
 # SESSION STATE INIT
@@ -193,7 +192,7 @@ def page_home():
 # PAGE: SYMPTOM PREDICTION
 # =====================================================
 def page_symptom():
-    model, features, imputer = load_symptom_assets()
+    model, features = load_symptom_assets()
     num_features = len(features)
 
     # Init state if coming fresh from home
@@ -245,9 +244,8 @@ def page_symptom():
             st.session_state.asked.append(question)
             st.session_state.round_questions += 1
 
-            # Apply imputer before predicting
-            imputed_state = imputer.transform(st.session_state.user_state)
-            probs = model.predict_proba(imputed_state)[0]
+            # Predict directly (same as original working code)
+            probs = model.predict_proba(st.session_state.user_state)[0]
             st.session_state.final_probs = probs
 
             if probs.max() >= CONFIDENCE_THRESHOLD:
