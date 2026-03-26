@@ -5,3 +5,4 @@ pandas
 joblib
 tensorflow
 pillow
+mysql-connector-python
