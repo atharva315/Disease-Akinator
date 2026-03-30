@@ -13,8 +13,8 @@ from db_utils import (
 # PAGE CONFIG
 # =====================================================
 st.set_page_config(
-    page_title="Disease Akinator",
-    page_icon="🧞",
+    page_title="Disease Predictor",
+    page_icon="",
     layout="centered"
 )
 
@@ -113,7 +113,7 @@ def get_probs(model):
 # =====================================================
 def page_home():
     st.markdown("""
-    <h1 style='text-align:center; font-size:2.2rem;'>🧞 Disease Akinator</h1>
+    <h1 style='text-align:center; font-size:2.2rem;'> Disease Predictor</h1>
     <p style='text-align:center; color:#666; font-size:15px; margin-bottom:28px;'>
         AI-powered multi-modal disease diagnosis system
     </p>
@@ -124,10 +124,10 @@ def page_home():
     with col1:
         st.markdown("""
         <div class="section-card">
-            <div class="section-icon">🩺</div>
+            <div class="section-icon"></div>
             <div class="badge-done">✓ Available</div>
             <div class="section-title">Symptom Checker</div>
-            <div class="section-desc">Answer a few questions about your symptoms and I'll guess your disease — Akinator style.</div>
+            <div class="section-desc">Answer a few questions about your symptoms to predict your disease.</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Start Diagnosis", key="btn_symptom", use_container_width=True):
@@ -137,10 +137,10 @@ def page_home():
     with col2:
         st.markdown("""
         <div class="section-card">
-            <div class="section-icon">🔬</div>
+            <div class="section-icon"></div>
             <div class="badge-done">✓ Available</div>
             <div class="section-title">Skin Disease Scanner</div>
-            <div class="section-desc">Upload a photo of a skin condition and our CNN model will classify the disease.</div>
+            <div class="section-desc">Upload a photo of a skin condition for classifying your disease.</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Upload Image", key="btn_image", use_container_width=True):
@@ -150,7 +150,7 @@ def page_home():
     with col3:
         st.markdown("""
         <div class="section-card">
-            <div class="section-icon">👨‍⚕️</div>
+            <div class="section-icon"></div>
             <div class="badge-done">✓ Available</div>
             <div class="section-title">Doctor Portal</div>
             <div class="section-desc">Medical professionals can contribute new disease data — symptoms or images — to improve the model.</div>
@@ -207,10 +207,10 @@ def page_symptom():
 
         st.markdown("<br>", unsafe_allow_html=True)
         answer = None
-        if st.button("✅ Yes",           use_container_width=True): answer = "Yes"
-        elif st.button("🤔 Probably",     use_container_width=True): answer = "Probably"
-        elif st.button("❓ Probably Not", use_container_width=True): answer = "Probably Not"
-        elif st.button("❌ No",           use_container_width=True): answer = "No"
+        if st.button(" Yes",           use_container_width=True): answer = "Yes"
+        elif st.button(" Probably",     use_container_width=True): answer = "Probably"
+        elif st.button(" Probably Not", use_container_width=True): answer = "Probably Not"
+        elif st.button(" No",           use_container_width=True): answer = "No"
 
         if answer:
             update_user_state(q_index, answer)
@@ -235,11 +235,11 @@ def page_symptom():
         </div>
         """, unsafe_allow_html=True)
         st.markdown("### Is this correct?")
-        if st.button("✅ Yes, this is correct!", use_container_width=True):
+        if st.button(" Yes, this is correct!", use_container_width=True):
             st.session_state.done = True
             st.session_state.show_checkpoint = False
             st.rerun()
-        if st.button("❌ No, continue asking", use_container_width=True):
+        if st.button(" No, continue asking", use_container_width=True):
             st.session_state.round_questions = 0
             st.session_state.show_checkpoint = False
             st.rerun()
@@ -247,7 +247,7 @@ def page_symptom():
     else:
         probs = st.session_state.final_probs
         order = probs.argsort()[::-1]
-        st.markdown("## 🎯 Diagnosis Complete!")
+        st.markdown("##  Diagnosis Complete!")
         st.markdown(f"""
         <div style="background:#e8f5e9; padding:1.5rem; border-radius:1rem; text-align:center;">
             <h2>🩺 {model.classes_[order[0]]}</h2>
@@ -413,7 +413,7 @@ def page_doctor():
         notes_sym     = st.text_area("Additional clinical notes (optional)",
                                      placeholder="Any relevant notes...", height=80, key="sym_notes")
 
-        if st.button("✅ Submit Symptom Data", use_container_width=True, key="btn_sym"):
+        if st.button(" Submit Symptom Data", use_container_width=True, key="btn_sym"):
             if not disease_name.strip():
                 st.error("Please enter a disease name.")
             else:
@@ -427,7 +427,7 @@ def page_doctor():
                             symptoms_list=symptoms_list, notes=notes_sym.strip()
                         )
                     if ok:
-                        st.success(f"✅ {msg}")
+                        st.success(f" {msg}")
                         st.markdown(f"""
                         <div style="background:#f1f8e9; padding:12px; border-radius:8px;
                                     font-size:13px; color:#1a1a1a; margin-top:8px;">
@@ -436,7 +436,7 @@ def page_doctor():
                         </div>
                         """, unsafe_allow_html=True)
                     else:
-                        st.error(f"❌ {msg}")
+                        st.error(f" {msg}")
 
     with tab2:
         st.markdown("##### Upload a labelled skin disease image")
