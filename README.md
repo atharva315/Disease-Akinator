@@ -113,3 +113,77 @@ The system is deployed using **Streamlit**, enabling real-time interaction and f
 ---
 
 ## 📂 Project Structure
+Disease-Akinator/
+│
+├── app.py
+├── final_ensemble.pkl
+├── skin_model.h5
+├── class_names.pkl
+├── feature_names.pkl
+├── imputer.pkl
+├── requirements.txt
+└── assets/
+
+
+---
+
+
+---
+
+## 📸 Application Screenshots
+
+### 🔹 Home Page
+![](assets/home.png)
+
+### 🔹 Symptom-Based Diagnosis
+![Symptom](assets/symptom.png)
+![Symptom dignosis](assets/symptomresult.png)
+
+### 🔹 Image-Based Diagnosis
+![Image](assets/image.png)
+![Image dignosis](assets/imagedignosis.png)
+
+### 🔹 Doctor Portal
+![Doctor portal](assets/doctor.png)
+![Doctor portal Result](assets/doctorresult.png)
+
+---
+
+## 🔄 Continuous Learning
+
+Doctor Input → MySQL Database → Retraining → Model Update → Improved Predictions  
+
+---
+
+## 🌍 Use Cases
+
+- Preliminary health diagnosis  
+- Remote healthcare assistance  
+- AI-based decision support  
+- Medical data collection  
+
+---
+
+## ⚠️ Disclaimer
+
+This system is for **educational purposes only** and should not replace professional medical advice.
+
+---
+
+## 🔮 Future Scope
+
+- Mobile app development  
+- Hospital system integration  
+- Real-time monitoring using wearables  
+- Expansion to more diseases  
+- Automated retraining pipeline  
+
+---
+
+## 👨‍💻 Authors
+
+- Atharva Gaikwad  
+
+---
+
+
