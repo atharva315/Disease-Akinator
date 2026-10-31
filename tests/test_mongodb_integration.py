@@ -14,12 +14,11 @@ from __future__ import annotations
 import getpass
 import os
 import sys
-from io import BytesIO
+import base64
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 from uuid import uuid4
 
-from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -61,14 +60,23 @@ def make_test_pdf() -> bytes:
     return bytes(pdf)
 
 
-def make_test_image(image_format: str) -> bytes:
-    """Generate a genuine decodable 1x1 test image using Pillow."""
-    output = BytesIO()
-    Image.new("RGB", (1, 1), color=(220, 40, 40)).save(
-        output,
-        format=image_format,
+def make_test_png() -> bytes:
+    """Return a valid 1x1 RGB PNG fixture."""
+    return base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe"
+        "AAAADElEQVR4nGO4o6EBAAMQAS0ujiXaAAAAAElFTkSuQmCC"
     )
-    return output.getvalue()
+
+
+def make_test_jpeg() -> bytes:
+    """Return a valid 2x2 JPEG fixture."""
+    return base64.b64decode(
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/"
+        "2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAACAAIDASIAAhEBAxEB/"
+        "8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/"
+        "8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/"
+        "9oADAMBAAIRAxEAPwDiaKKK+PP6QP/Z"
+    )
 
 
 def main() -> int:
@@ -115,8 +123,8 @@ def main() -> int:
 
     # Valid synthetic fixtures only; this does not test medical authenticity.
     pdf_bytes = make_test_pdf()
-    png_bytes = make_test_image("PNG")
-    jpeg_bytes = make_test_image("JPEG")
+    png_bytes = make_test_png()
+    jpeg_bytes = make_test_jpeg()
 
     try:
         connection = check_mongodb_connection()
