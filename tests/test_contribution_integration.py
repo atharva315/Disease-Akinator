@@ -26,24 +26,50 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def make_test_png() -> bytes:
-    """Return a valid 1x1 RGB PNG fixture."""
-    return base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe"
-        "AAAADElEQVR4nGO4o6EBAAMQAS0ujiXaAAAAAElFTkSuQmCC"
+    """Return a valid 2x2 RGB PNG fixture (stdlib-only)."""
+    data = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAIAAAD91Jpz"
+        "AAAAFklEQVR4nGPcp+HGwMDAxMDAwMDAAAAOsgEwOQnPWQAAAABJRU5ErkJggg==",
+        validate=True,
     )
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise RuntimeError("Embedded PNG test fixture is invalid.")
+    return data
+
 
 def make_test_jpeg() -> bytes:
-    """Return a valid 2x2 JPEG fixture."""
-    return base64.b64decode(
-        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/"
-        "2wBDAQUFBQcGBw4ICA4eFBEUHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAACAAIDASIAAhEBAxEB/"
-        "8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/"
-        "8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/"
-        "9oADAMBAAIRAxEAPwDiaKKK+PP6QP/Z"
+    """Return a valid 2x2 RGB JPEG fixture (stdlib-only)."""
+    data = base64.b64decode(
+        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAgGBgcGBQgHBwcJCQgKDBQNDAsLDBkSEw8UHRofHh0aHBwgJC4nICIsIxwcKDcpLDAxNDQ0Hyc5PTgyPC4zNDL/"
+        "2wBDAQkJCQwLDBgNDRgyIRwhMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjL/"
+        "wAARCAACAAIDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/"
+        "8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVW"
+        "V1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3"
+        "+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/"
+        "8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RV"
+        "VldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3"
+        "+Pn6/9oADAMBAAIRAxEAPwDl6KKK5j9BP//Z",
+        validate=True,
     )
+    if not data.startswith(b"\xff\xd8\xff") or not data.endswith(b"\xff\xd9"):
+        raise RuntimeError("Embedded JPEG test fixture is invalid.")
+    return data
+
 
 def main() -> int:
     print("=== Disease Akinator Contribution Integration Test ===")
+
+    try:
+        png_bytes = make_test_png()
+        jpeg_bytes = make_test_jpeg()
+    except Exception as exc:
+        print(f"SETUP ERROR: Embedded image fixtures are invalid: {type(exc).__name__}")
+        return 1
+
+    print(
+        f"PASS: Standard-library test fixtures ready "
+        f"(PNG {len(png_bytes)} bytes, JPEG {len(jpeg_bytes)} bytes)"
+    )
 
     pg_uri = getpass.getpass("Paste Neon application URI (hidden): ").strip()
     parsed_pg = urlsplit(pg_uri)
@@ -115,6 +141,7 @@ def main() -> int:
 
     before = None
     try:
+        before = get_contribution_stats()
         doctor = register_doctor(
             full_name="Temporary Contribution Test Doctor",
             age=35,
@@ -129,7 +156,6 @@ def main() -> int:
         )
         doctor_id = doctor["id"]
         degree_file_id = doctor["degree_file_id"]
-        before = get_contribution_stats()
         check(True, "Create temporary doctor for contribution tests")
 
         ok, message = submit_symptom_contribution(
@@ -160,9 +186,6 @@ def main() -> int:
             and symptom_detail["symptoms"] == ["Fever", "Headache", "Joint pain"],
             "Read individual symptom contribution and child rows",
         )
-
-        png_bytes = make_test_png()
-        jpeg_bytes = make_test_jpeg()
 
         ok, message = submit_image_contribution(
             doctor_id=doctor_id,
@@ -232,7 +255,7 @@ def main() -> int:
 
         after = get_contribution_stats()
         check(
-            after["doctors"] == before["doctors"]
+            after["doctors"] == before["doctors"] + 1
             and after["symptom_entries"] == before["symptom_entries"] + 1
             and after["image_entries"] == before["image_entries"] + 2,
             "PostgreSQL contribution statistics count the new records",
