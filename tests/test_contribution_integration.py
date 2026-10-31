@@ -10,16 +10,15 @@ checks statistics, then removes all temporary PostgreSQL and GridFS records.
 
 from __future__ import annotations
 
+import base64
 import getpass
 import os
 import sys
-from io import BytesIO
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from psycopg.conninfo import make_conninfo
-from PIL import Image
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -27,9 +26,21 @@ if str(PROJECT_ROOT) not in sys.path:
 
 
 def make_image_bytes(image_format: str) -> bytes:
-    output = BytesIO()
-    Image.new("RGB", (8, 8), color=(190, 40, 70)).save(output, format=image_format)
-    return output.getvalue()
+    """Return known-valid tiny PNG/JPEG fixtures without Pillow or other extras."""
+    if image_format.upper() == "PNG":
+        return base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1Pe"
+            "AAAADElEQVR4nGO4o6EBAAMQAS0ujiXaAAAAAElFTkSuQmCC"
+        )
+    if image_format.upper() == "JPEG":
+        return base64.b64decode(
+            "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAUDBAQEAwUEBAQFBQUGBwwIBwcHBw8LCwkMEQ8SEhEPERETFhwXExQaFRERGCEYGh0dHx8fExciJCIeJBweHx7/"
+            "2wBDAQUFBQcGBw4ICA4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh7/wAARCAACAAIDASIAAhEBAxEB/"
+            "8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWW5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/"
+            "8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/"
+            "9oADAMBAAIRAxEAPwDiaKKK+PP6QP/Z"
+        )
+    raise ValueError("Only PNG and JPEG fixture formats are supported.")
 
 
 def main() -> int:
