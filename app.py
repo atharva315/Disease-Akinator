@@ -82,7 +82,7 @@ def load_skin_assets():
     return skin_model, class_names
 
 # =====================================================
-# SESSION + DB INIT
+# SESSION STATE
 # =====================================================
 def init_session():
     if "page" not in st.session_state:
