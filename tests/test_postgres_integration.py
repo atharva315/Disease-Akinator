@@ -12,15 +12,38 @@ from __future__ import annotations
 
 import getpass
 import os
+import sys
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from psycopg.conninfo import make_conninfo
 from psycopg.errors import ForeignKeyViolation
 
+# When invoked as "python tests\\test_postgres_integration.py", Python puts
+# the tests directory (not the repository root) at sys.path[0]. Add the
+# repository root so the sibling "database" package is importable.
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+POSTGRES_MODULE = PROJECT_ROOT / "database" / "postgres.py"
+DATABASE_INIT = PROJECT_ROOT / "database" / "__init__.py"
+
 
 def main() -> int:
     print("=== Disease Akinator PostgreSQL Integration Test ===")
+
+    # Fail early with a useful setup message instead of asking for credentials
+    # and then raising an opaque ModuleNotFoundError.
+    if not DATABASE_INIT.is_file() or not POSTGRES_MODULE.is_file():
+        print("SETUP ERROR: The local database package is missing.")
+        print(f"Expected: {DATABASE_INIT}")
+        print(f"Expected: {POSTGRES_MODULE}")
+        print("Download database/__init__.py and database/postgres.py")
+        print("from the feature/database-migration branch, or extract")
+        print("the supplied Phase 2 test bundle into this folder.")
+        return 1
 
     uri = getpass.getpass(
         "Paste Neon application URI (hidden): "
