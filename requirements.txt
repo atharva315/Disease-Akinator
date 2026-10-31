@@ -6,3 +6,4 @@ joblib
 tensorflow
 pillow
 mysql-connector-python
+psycopg[binary]>=3.2,<4
