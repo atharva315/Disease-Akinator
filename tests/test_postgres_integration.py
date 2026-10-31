@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from psycopg.conninfo import make_conninfo
-from psycopg.errors import ForeignKeyViolation
+from psycopg.errors import ForeignKeyViolation, RestrictViolation
 
 # When invoked as "python tests\\test_postgres_integration.py", Python puts
 # the tests directory (not the repository root) at sys.path[0]. Add the
@@ -205,7 +205,7 @@ def main() -> int:
         # Verify the doctor cannot be deleted while contributions reference it.
         try:
             delete_doctor(doctor_id)
-        except ForeignKeyViolation:
+        except (RestrictViolation, ForeignKeyViolation):
             print("PASS: Foreign key prevents deleting a doctor with contributions")
         else:
             raise AssertionError(
