@@ -1,11 +1,28 @@
-streamlit
-scikit-learn
-numpy
-pandas
-joblib
-tensorflow
-pillow
-mysql-connector-python
+# Disease Akinator runtime dependencies
+# Target local environment: CPython 3.13.x, Windows x64 / Streamlit Cloud Linux.
+# TensorFlow 2.21.0 provides a CPython 3.13 Windows x64 wheel.
+# NumPy is constrained below 2.2 for the TensorFlow 2.21 compatibility range.
+
+streamlit==1.66.1
+numpy>=2.0,<2.2
+Pillow>=11,<14
+joblib>=1.4,<2
+scikit-learn>=1.6,<2
+scipy>=1.13,<2
+tensorflow==2.21.0
+h5py>=3.11,<3.15
+
+# Neon PostgreSQL
 psycopg[binary]>=3.2,<4
-pymongo>=4.9,<5
+
+# MongoDB Atlas SRV + GridFS
+pymongo[srv]>=4.9,<5
+dnspython>=2.7,<3
+
+# Doctor password hashing
 argon2-cffi>=23.1,<26
+
+# IMPORTANT:
+# Keep scikit-learn compatible with the version used to serialize
+# final_ensemble.pkl. The model artifact must be tested after installation.
+# Exact sklearn pin can be tightened after checking the original model runtime.
