@@ -207,7 +207,6 @@ def main() -> int:
             f"phase5-{run_id}.jpg": (jpeg_bytes, "image/jpeg"),
         }
         for row in image_rows:
-            image_file_ids.append(row["mongo_file_id"])
             expected_bytes, expected_content_type = expected_by_name[row["image_filename"]]
             metadata = get_file_metadata(IMAGE_BUCKET, row["mongo_file_id"])
             check(
@@ -284,6 +283,14 @@ def main() -> int:
                         delete_file(IMAGE_BUCKET, row["mongo_file_id"])
             except Exception:
                 print("WARNING: Image contribution cleanup may be required.")
+
+            # Also delete known file IDs in case their SQL metadata was already
+            # removed before a later cleanup assertion failed.
+            for file_id in image_file_ids:
+                try:
+                    delete_file(IMAGE_BUCKET, file_id)
+                except Exception:
+                    print("WARNING: Orphaned GridFS file cleanup may be required.")
 
             try:
                 for row in list_symptom_contributions(doctor_id):
