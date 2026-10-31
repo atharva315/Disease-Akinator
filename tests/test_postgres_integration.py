@@ -18,7 +18,7 @@ from urllib.parse import unquote, urlsplit
 from uuid import uuid4
 
 from psycopg.conninfo import make_conninfo
-from psycopg.errors import ForeignKeyViolation, RestrictViolation
+from psycopg import IntegrityError
 
 # When invoked as "python tests\\test_postgres_integration.py", Python puts
 # the tests directory (not the repository root) at sys.path[0]. Add the
@@ -205,8 +205,18 @@ def main() -> int:
         # Verify the doctor cannot be deleted while contributions reference it.
         try:
             delete_doctor(doctor_id)
-        except (RestrictViolation, ForeignKeyViolation):
-            print("PASS: Foreign key prevents deleting a doctor with contributions")
+        except IntegrityError as exc:
+            constraint_name = getattr(
+                getattr(exc, "diag", None), "constraint_name", None
+            )
+            if constraint_name != "symptom_contributions_doctor_id_fkey":
+                raise AssertionError(
+                    "Doctor deletion failed because of an unexpected integrity "
+                    f"constraint: {constraint_name!r}"
+                ) from exc
+            print(
+                "PASS: Foreign key prevents deleting a doctor with contributions"
+            )
         else:
             raise AssertionError(
                 "Doctor deletion should have been blocked by contribution foreign keys"
