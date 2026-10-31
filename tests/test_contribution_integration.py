@@ -158,42 +158,53 @@ def main() -> int:
             doctor_id=doctor_id,
             disease_name="Phase 5 Test Image Disease",
             image_bytes=png_bytes,
-            image_name="phase5-test.png",
+            image_name=f"phase5-{run_id}.png",
             notes="Synthetic PNG integration test",
         )
         check(ok, f"Submit PNG contribution ({message})")
+        png_row = next(
+            (
+                row for row in list_image_contributions(doctor_id)
+                if row["image_filename"] == f"phase5-{run_id}.png"
+            ),
+            None,
+        )
+        check(png_row is not None, "Find PostgreSQL metadata for uploaded PNG")
+        image_rows.append(png_row)
+        image_file_ids.append(png_row["mongo_file_id"])
 
         ok, message = submit_image_contribution(
             doctor_id=doctor_id,
             disease_name="Phase 5 Test JPEG Disease",
             image_bytes=jpeg_bytes,
-            image_name="phase5-test.jpg",
+            image_name=f"phase5-{run_id}.jpg",
             notes="Synthetic JPEG integration test",
         )
         check(ok, f"Submit JPEG contribution ({message})")
+        jpeg_row = next(
+            (
+                row for row in list_image_contributions(doctor_id)
+                if row["image_filename"] == f"phase5-{run_id}.jpg"
+            ),
+            None,
+        )
+        check(jpeg_row is not None, "Find PostgreSQL metadata for uploaded JPEG")
+        image_rows.append(jpeg_row)
+        image_file_ids.append(jpeg_row["mongo_file_id"])
 
-        listed_images = list_image_contributions(doctor_id)
-        matching_images = [
-            row for row in listed_images
-            if row["disease_name"] in {
-                "Phase 5 Test Image Disease",
-                "Phase 5 Test JPEG Disease",
-            }
-        ]
         check(
-            len(matching_images) == 2
+            len(image_rows) == 2
             and all(
                 row["doctor_id"] == doctor_id
                 and row["uploaded_by"] == "Temporary Contribution Test Doctor"
-                for row in matching_images
+                for row in image_rows
             ),
             "Neon image metadata identifies the contributing doctor",
         )
-        image_rows = matching_images
 
         expected_by_name = {
-            "phase5-test.png": (png_bytes, "image/png"),
-            "phase5-test.jpg": (jpeg_bytes, "image/jpeg"),
+            f"phase5-{run_id}.png": (png_bytes, "image/png"),
+            f"phase5-{run_id}.jpg": (jpeg_bytes, "image/jpeg"),
         }
         for row in image_rows:
             image_file_ids.append(row["mongo_file_id"])
@@ -263,26 +274,24 @@ def main() -> int:
         return 1
 
     finally:
-        # Best-effort cleanup after an interrupted or failed assertion.
-        for row in image_rows:
+        # Discover test-child records by the isolated temporary doctor ID so
+        # cleanup still works if an assertion fails before IDs are recorded.
+        if doctor_id is not None:
             try:
-                delete_image_contribution(row["id"])
+                for row in list_image_contributions(doctor_id):
+                    if row["image_filename"].startswith(f"phase5-{run_id}."):
+                        delete_image_contribution(row["id"])
+                        delete_file(IMAGE_BUCKET, row["mongo_file_id"])
             except Exception:
-                print("WARNING: Image metadata cleanup may be required.")
+                print("WARNING: Image contribution cleanup may be required.")
 
-        for file_id in image_file_ids:
             try:
-                delete_file(IMAGE_BUCKET, file_id)
-            except Exception:
-                print("WARNING: GridFS image cleanup may be required.")
-
-        if symptom_id is not None:
-            try:
-                delete_symptom_contribution(symptom_id)
+                for row in list_symptom_contributions(doctor_id):
+                    if row["disease_name"] == "Phase 5 Test Disease":
+                        delete_symptom_contribution(row["id"])
             except Exception:
                 print("WARNING: Symptom contribution cleanup may be required.")
 
-        if doctor_id is not None:
             try:
                 delete_doctor(doctor_id)
             except Exception:
