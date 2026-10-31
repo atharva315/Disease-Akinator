@@ -11,13 +11,15 @@ deletes every test file.
 
 from __future__ import annotations
 
-import base64
 import getpass
 import os
 import sys
+from io import BytesIO
 from pathlib import Path
 from urllib.parse import urlsplit, unquote
 from uuid import uuid4
+
+from PIL import Image
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,23 +27,48 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 
-def make_test_png() -> bytes:
-    # A valid 1x1 RGB PNG (red pixel).
-    return base64.b64decode(
-        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
-        "AAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/nwAAAABJRU5ErkJggg=="
+def make_test_pdf() -> bytes:
+    """Generate a valid one-page PDF fixture without external tools."""
+    text = b"BT /F1 12 Tf 20 60 Td (Disease Akinator GridFS test) Tj ET"
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] "
+        b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        b"<< /Length " + str(len(text)).encode()
+        + b" >>\nstream\n" + text + b"\nendstream",
+    ]
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, obj in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{number} 0 obj\n".encode())
+        pdf.extend(obj)
+        pdf.extend(b"\nendobj\n")
+
+    xref_offset = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode())
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode())
+
+    pdf.extend(
+        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+        f"startxref\n{xref_offset}\n%%EOF\n".encode()
     )
+    return bytes(pdf)
 
 
-def make_test_jpeg() -> bytes:
-    # Minimal valid JPEG fixture generated from a tiny known JPEG sample.
-    return base64.b64decode(
-        "/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////"
-        "//////////////////////////////////////////////////////////////////////////////////////2wBDAf//////////////////////////////////////////////////////////////////////////////////////"
-        "//////////////////////////////////////////////////////////////////////////////////////wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAb/"
-        "xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/"
-        "xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCwAA//2Q=="
+def make_test_image(image_format: str) -> bytes:
+    """Generate a genuine decodable 1x1 test image using Pillow."""
+    output = BytesIO()
+    Image.new("RGB", (1, 1), color=(220, 40, 40)).save(
+        output,
+        format=image_format,
     )
+    return output.getvalue()
 
 
 def main() -> int:
@@ -86,16 +113,10 @@ def main() -> int:
             raise AssertionError(label)
         print(f"PASS: {label}")
 
-    # Minimal valid PDF header/body fixture. It is a storage-format test,
-    # not a real or authentic medical degree certificate.
-    pdf_bytes = (
-        b"%PDF-1.4\n"
-        b"1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n"
-        b"2 0 obj << /Type /Pages /Kids [] /Count 0 >> endobj\n"
-        b"trailer << /Root 1 0 R >>\n%%EOF\n"
-    )
-    png_bytes = make_test_png()
-    jpeg_bytes = make_test_jpeg()
+    # Valid synthetic fixtures only; this does not test medical authenticity.
+    pdf_bytes = make_test_pdf()
+    png_bytes = make_test_image("PNG")
+    jpeg_bytes = make_test_image("JPEG")
 
     try:
         connection = check_mongodb_connection()
