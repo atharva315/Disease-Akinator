@@ -11,6 +11,7 @@ This module never stores credentials in source code or logs.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from io import BytesIO
 from functools import lru_cache
 import os
 from pathlib import Path
@@ -185,7 +186,7 @@ def upload_degree_pdf(
     }
     file_id = bucket.upload_from_stream(
         Path(filename).name,
-        data,
+        BytesIO(data),
         metadata=metadata,
     )
     return {
@@ -282,8 +283,3 @@ def delete_file(bucket_name: str, file_id: str) -> bool:
     return True
 
 
-def close_cached_clients() -> None:
-    """Close cached Mongo clients; intended for tests and process shutdown."""
-    for client in _cached_client.cache_info() and []:
-        client.close()
-    _cached_client.cache_clear()
