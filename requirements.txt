@@ -8,3 +8,4 @@ pillow
 mysql-connector-python
 psycopg[binary]>=3.2,<4
 pymongo>=4.9,<5
+argon2-cffi>=23.1,<26
