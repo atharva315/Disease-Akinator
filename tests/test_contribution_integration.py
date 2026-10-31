@@ -1,0 +1,299 @@
+"""Neon + MongoDB integration test for doctor contributions.
+
+Run:
+    python tests/test_contribution_integration.py
+
+Creates one temporary doctor, submits a symptom contribution and two image
+contributions, verifies uploader attribution and exact GridFS download bytes,
+checks statistics, then removes all temporary PostgreSQL and GridFS records.
+"""
+
+from __future__ import annotations
+
+import getpass
+import os
+import sys
+from io import BytesIO
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+from uuid import uuid4
+
+from psycopg.conninfo import make_conninfo
+from PIL import Image
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+
+def make_image_bytes(image_format: str) -> bytes:
+    output = BytesIO()
+    Image.new("RGB", (8, 8), color=(190, 40, 70)).save(output, format=image_format)
+    return output.getvalue()
+
+
+def main() -> int:
+    print("=== Disease Akinator Contribution Integration Test ===")
+
+    pg_uri = getpass.getpass("Paste Neon application URI (hidden): ").strip()
+    parsed_pg = urlsplit(pg_uri)
+    if unquote(parsed_pg.username or "") != "disease_akinator_app":
+        print("FAIL: Neon URI must use disease_akinator_app.")
+        return 1
+    if parsed_pg.path.lstrip("/").split("?")[0] != "disease_akinator":
+        print("FAIL: Neon URI must target disease_akinator.")
+        return 1
+
+    pg_password = getpass.getpass("Neon application password (hidden): ")
+    if not pg_password:
+        print("FAIL: Neon password cannot be empty.")
+        return 1
+    os.environ["DISEASE_AKINATOR_POSTGRES_URL"] = make_conninfo(
+        pg_uri, password=pg_password
+    )
+
+    mongo_uri = getpass.getpass("Paste MongoDB Atlas application URI (hidden): ").strip()
+    parsed_mongo = urlsplit(mongo_uri)
+    if parsed_mongo.scheme not in {"mongodb", "mongodb+srv"}:
+        print("FAIL: Invalid MongoDB URI scheme.")
+        return 1
+    if unquote(parsed_mongo.username or "") != "disease_akinator_app":
+        print("FAIL: MongoDB URI must use disease_akinator_app.")
+        return 1
+    os.environ["DISEASE_AKINATOR_MONGODB_URI"] = mongo_uri
+
+    from database.mongodb import (
+        IMAGE_BUCKET,
+        DEGREE_BUCKET,
+        delete_file,
+        download_file,
+        get_file_metadata,
+    )
+    from database.postgres import (
+        create_image_contribution,
+        create_symptom_contribution,
+        delete_doctor,
+        delete_image_contribution,
+        delete_symptom_contribution,
+        get_contribution_stats,
+        get_image_contribution,
+        get_symptom_contribution,
+        list_image_contributions,
+        list_symptom_contributions,
+    )
+    from services.doctor_service import register_doctor
+    from services.contribution_service import (
+        submit_image_contribution,
+        submit_symptom_contribution,
+    )
+
+    run_id = uuid4().hex
+    email = f"phase5-contrib-{run_id}@example.invalid"
+    doctor_password = f"Pa9!{uuid4().hex}Z"
+    pdf_bytes = b"%PDF-1.4\nTemporary contribution-test doctor PDF.\n%%EOF\n"
+
+    doctor_id = None
+    degree_file_id = None
+    symptom_id = None
+    image_rows: list[dict] = []
+    image_file_ids: list[str] = []
+
+    def check(condition: bool, label: str) -> None:
+        if not condition:
+            raise AssertionError(label)
+        print(f"PASS: {label}")
+
+    before = None
+    try:
+        doctor = register_doctor(
+            full_name="Temporary Contribution Test Doctor",
+            age=35,
+            degree="MBBS",
+            custom_degree=None,
+            hospital="Temporary Contribution Clinic",
+            city="Pune",
+            email=email,
+            password=doctor_password,
+            degree_filename="contribution-test-degree.pdf",
+            degree_file_bytes=pdf_bytes,
+        )
+        doctor_id = doctor["id"]
+        degree_file_id = doctor["degree_file_id"]
+        before = get_contribution_stats()
+        check(True, "Create temporary doctor for contribution tests")
+
+        ok, message = submit_symptom_contribution(
+            doctor_id=doctor_id,
+            disease_name="Phase 5 Test Disease",
+            symptoms_list=["Fever", "Headache", "Joint pain", " fever "],
+            notes="Temporary integration-test contribution",
+        )
+        check(ok, f"Submit symptom contribution ({message})")
+
+        symptom_rows = list_symptom_contributions(doctor_id)
+        matching_symptom = next(
+            (row for row in symptom_rows if row["disease_name"] == "Phase 5 Test Disease"),
+            None,
+        )
+        check(
+            matching_symptom is not None
+            and matching_symptom["doctor_id"] == doctor_id
+            and matching_symptom["uploaded_by"] == "Temporary Contribution Test Doctor"
+            and matching_symptom["symptoms"] == ["Fever", "Headache", "Joint pain"],
+            "Neon stores symptoms, ordering, de-duplication and uploader identity",
+        )
+        symptom_id = matching_symptom["id"]
+
+        symptom_detail = get_symptom_contribution(symptom_id)
+        check(
+            symptom_detail is not None
+            and symptom_detail["symptoms"] == ["Fever", "Headache", "Joint pain"],
+            "Read individual symptom contribution and child rows",
+        )
+
+        png_bytes = make_image_bytes("PNG")
+        jpeg_bytes = make_image_bytes("JPEG")
+
+        ok, message = submit_image_contribution(
+            doctor_id=doctor_id,
+            disease_name="Phase 5 Test Image Disease",
+            image_bytes=png_bytes,
+            image_name="phase5-test.png",
+            notes="Synthetic PNG integration test",
+        )
+        check(ok, f"Submit PNG contribution ({message})")
+
+        ok, message = submit_image_contribution(
+            doctor_id=doctor_id,
+            disease_name="Phase 5 Test JPEG Disease",
+            image_bytes=jpeg_bytes,
+            image_name="phase5-test.jpg",
+            notes="Synthetic JPEG integration test",
+        )
+        check(ok, f"Submit JPEG contribution ({message})")
+
+        listed_images = list_image_contributions(doctor_id)
+        matching_images = [
+            row for row in listed_images
+            if row["disease_name"] in {
+                "Phase 5 Test Image Disease",
+                "Phase 5 Test JPEG Disease",
+            }
+        ]
+        check(
+            len(matching_images) == 2
+            and all(
+                row["doctor_id"] == doctor_id
+                and row["uploaded_by"] == "Temporary Contribution Test Doctor"
+                for row in matching_images
+            ),
+            "Neon image metadata identifies the contributing doctor",
+        )
+        image_rows = matching_images
+
+        expected_by_name = {
+            "phase5-test.png": (png_bytes, "image/png"),
+            "phase5-test.jpg": (jpeg_bytes, "image/jpeg"),
+        }
+        for row in image_rows:
+            image_file_ids.append(row["mongo_file_id"])
+            expected_bytes, expected_content_type = expected_by_name[row["image_filename"]]
+            metadata = get_file_metadata(IMAGE_BUCKET, row["mongo_file_id"])
+            check(
+                metadata is not None
+                and metadata["metadata"]["uploaded_by_doctor_id"] == doctor_id
+                and metadata["metadata"]["content_type"] == expected_content_type,
+                f"GridFS metadata records uploader and type for {row['image_filename']}",
+            )
+            check(
+                download_file(IMAGE_BUCKET, row["mongo_file_id"]) == expected_bytes,
+                f"GridFS download matches original {row['image_filename']} bytes",
+            )
+
+        after = get_contribution_stats()
+        check(
+            after["doctors"] == before["doctors"]
+            and after["symptom_entries"] == before["symptom_entries"] + 1
+            and after["image_entries"] == before["image_entries"] + 2,
+            "PostgreSQL contribution statistics count the new records",
+        )
+
+        print("\n--- Cleanup ---")
+        for row in image_rows:
+            check(
+                delete_image_contribution(row["id"]),
+                f"Delete PostgreSQL image metadata {row['id']}",
+            )
+        image_rows.clear()
+
+        for file_id in image_file_ids:
+            check(
+                delete_file(IMAGE_BUCKET, file_id),
+                "Delete GridFS contribution image",
+            )
+        image_file_ids.clear()
+
+        check(
+            delete_symptom_contribution(symptom_id),
+            "Delete symptom contribution and cascade symptom items",
+        )
+        symptom_id = None
+
+        check(delete_doctor(doctor_id), "Delete temporary doctor")
+        doctor_id = None
+
+        check(
+            delete_file(DEGREE_BUCKET, degree_file_id),
+            "Delete temporary doctor's degree PDF",
+        )
+        degree_file_id = None
+
+        check(
+            get_contribution_stats() == before,
+            "All temporary contribution records removed and counts restored",
+        )
+
+        print("\n==============================================")
+        print("ALL CONTRIBUTION INTEGRATION TESTS PASSED")
+        print("==============================================")
+        return 0
+
+    except Exception as exc:
+        print(f"\nFAIL: {type(exc).__name__}: {exc}")
+        return 1
+
+    finally:
+        # Best-effort cleanup after an interrupted or failed assertion.
+        for row in image_rows:
+            try:
+                delete_image_contribution(row["id"])
+            except Exception:
+                print("WARNING: Image metadata cleanup may be required.")
+
+        for file_id in image_file_ids:
+            try:
+                delete_file(IMAGE_BUCKET, file_id)
+            except Exception:
+                print("WARNING: GridFS image cleanup may be required.")
+
+        if symptom_id is not None:
+            try:
+                delete_symptom_contribution(symptom_id)
+            except Exception:
+                print("WARNING: Symptom contribution cleanup may be required.")
+
+        if doctor_id is not None:
+            try:
+                delete_doctor(doctor_id)
+            except Exception:
+                print("WARNING: Test doctor cleanup may be required.")
+
+        if degree_file_id is not None:
+            try:
+                delete_file(DEGREE_BUCKET, degree_file_id)
+            except Exception:
+                print("WARNING: Degree PDF cleanup may be required.")
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
