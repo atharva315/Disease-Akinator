@@ -8,6 +8,7 @@ Schema changes are intentionally kept out of this module.
 from __future__ import annotations
 
 from collections.abc import Sequence
+import os
 from typing import Any
 
 import psycopg
@@ -19,15 +20,20 @@ class DatabaseConfigurationError(RuntimeError):
 
 
 def _get_secret_conninfo() -> str:
-    """Read the PostgreSQL URI from Streamlit secrets without logging it."""
+    """Read a DSN from an environment variable or Streamlit secrets."""
+    env_conninfo = os.getenv("DISEASE_AKINATOR_POSTGRES_URL")
+    if env_conninfo and env_conninfo.strip():
+        return env_conninfo.strip()
+
     try:
         import streamlit as st
 
         conninfo = st.secrets["postgres"]["url"]
     except Exception as exc:
         raise DatabaseConfigurationError(
-            "PostgreSQL connection settings are missing. "
-            "Configure [postgres].url in Streamlit secrets."
+            "PostgreSQL connection settings are missing. Set "
+            "DISEASE_AKINATOR_POSTGRES_URL or configure "
+            "[postgres].url in Streamlit secrets."
         ) from exc
 
     if not isinstance(conninfo, str) or not conninfo.strip():
