@@ -94,25 +94,37 @@ def submit_image_contribution(
 ) -> tuple[bool, str]:
     """Upload an image to GridFS, then store its metadata in Neon.
 
-    If PostgreSQL metadata insertion fails after a successful GridFS upload,
-    the uploaded GridFS file is deleted as a compensating action. If that
-    cleanup also fails, the file ID is written to the application log for
-    operator recovery; the user receives a non-sensitive error message.
+    Validation and GridFS-upload failures happen before a file ID exists and
+    can be returned directly. Once GridFS returns a file ID, every subsequent
+    PostgreSQL error triggers a compensating GridFS delete, regardless of the
+    error class. If cleanup cannot be confirmed, the file ID is logged for
+    operator recovery and the caller receives a non-sensitive warning.
     """
-    uploaded_file_id: str | None = None
-
     try:
         _validate_doctor_id(doctor_id)
         disease = _validate_disease_name(disease_name)
         normalized_notes = _normalise_notes(notes)
+    except (TypeError, ValueError) as exc:
+        return False, str(exc)
 
+    try:
         uploaded = upload_contribution_image(
             file_bytes=image_bytes,
             filename=image_name,
             uploaded_by_doctor_id=doctor_id,
         )
-        uploaded_file_id = uploaded["file_id"]
+    except (TypeError, ValueError) as exc:
+        return False, str(exc)
+    except Exception:
+        logger.exception(
+            "GridFS image upload failed for doctor_id=%s",
+            doctor_id,
+        )
+        return False, "Unable to upload the image right now. Please try again."
 
+    uploaded_file_id = uploaded["file_id"]
+
+    try:
         create_image_contribution(
             doctor_id=doctor_id,
             disease_name=disease,
@@ -124,28 +136,16 @@ def submit_image_contribution(
         )
         return True, "Image submitted successfully!"
 
-    except (TypeError, ValueError) as exc:
-        return False, str(exc)
-
     except Exception:
         logger.exception(
-            "Failed to save image contribution for doctor_id=%s",
-            doctor_id if isinstance(doctor_id, int) else "invalid",
+            "Neon image metadata insert failed for doctor_id=%s",
+            doctor_id,
         )
-
-        if uploaded_file_id is not None:
-            try:
-                removed = delete_file(IMAGE_BUCKET, uploaded_file_id)
-                if not removed:
-                    logger.error(
-                        "GridFS compensation could not confirm deletion; "
-                        "bucket=%s file_id=%s",
-                        IMAGE_BUCKET,
-                        uploaded_file_id,
-                    )
-            except Exception:
-                logger.exception(
-                    "GridFS compensation failed; manual cleanup may be needed; "
+        try:
+            removed = delete_file(IMAGE_BUCKET, uploaded_file_id)
+            if not removed:
+                logger.error(
+                    "GridFS compensation could not confirm deletion; "
                     "bucket=%s file_id=%s",
                     IMAGE_BUCKET,
                     uploaded_file_id,
@@ -156,6 +156,19 @@ def submit_image_contribution(
                     "and cleanup could not be confirmed. Please contact the "
                     "project administrator before retrying.",
                 )
+        except Exception:
+            logger.exception(
+                "GridFS compensation failed; manual cleanup may be needed; "
+                "bucket=%s file_id=%s",
+                IMAGE_BUCKET,
+                uploaded_file_id,
+            )
+            return (
+                False,
+                "The image could not be linked to its database record, "
+                "and cleanup could not be confirmed. Please contact the "
+                "project administrator before retrying.",
+            )
 
         return False, "Unable to save the image right now. Please try again."
 
