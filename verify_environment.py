@@ -45,6 +45,7 @@ MODULES = {
 MODEL_FILES = (
     "final_ensemble.pkl",
     "feature_names.pkl",
+    "imputer.pkl",
     "skin_model.h5",
     "class_names.pkl",
 )
