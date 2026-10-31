@@ -152,6 +152,30 @@ class ImageContributionTests(unittest.TestCase):
     @patch("services.contribution_service.delete_file")
     @patch("services.contribution_service.create_image_contribution")
     @patch("services.contribution_service.upload_contribution_image")
+    def test_postgres_value_error_after_upload_also_deletes_gridfs_file(
+        self, mock_upload, mock_create, mock_delete
+    ):
+        mock_upload.return_value = self.uploaded
+        mock_create.side_effect = ValueError("simulated post-upload metadata failure")
+        mock_delete.return_value = True
+
+        result = submit_image_contribution(
+            doctor_id=12,
+            disease_name="Melanoma",
+            image_bytes=b"synthetic-image-bytes",
+            image_name="rash.png",
+        )
+
+        self.assertFalse(result[0])
+        self.assertIn("Unable to save the image", result[1])
+        mock_delete.assert_called_once_with(
+            "contribution_images",
+            self.uploaded["file_id"],
+        )
+
+    @patch("services.contribution_service.delete_file")
+    @patch("services.contribution_service.create_image_contribution")
+    @patch("services.contribution_service.upload_contribution_image")
     def test_failed_compensation_returns_operator_attention_message(
         self, mock_upload, mock_create, mock_delete
     ):
