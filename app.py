@@ -1,8 +1,7 @@
 import os
 
-# TensorFlow 2.21.0 can hit a native heap-corruption crash in oneDNN's
-# CPU backend on some Linux/AVX-512 hosts. Disable oneDNN before importing
-# TensorFlow so Streamlit Cloud uses the standard CPU kernels.
+# Keep TensorFlow on its standard CPU kernels in the hosted CPU-only runtime.
+# Set this before importing TensorFlow; do not move it below the import.
 os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import streamlit as st
