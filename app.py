@@ -8,7 +8,6 @@ import streamlit as st
 import numpy as np
 import joblib
 from PIL import Image
-import tensorflow as tf
 
 from database.postgres import get_contribution_stats
 from services.auth_service import authenticate_doctor
@@ -83,7 +82,12 @@ def load_symptom_assets():
 
 @st.cache_resource
 def load_skin_assets():
-    skin_model  = tf.keras.models.load_model("skin_model.h5")
+    # Import TensorFlow only when the image scanner is opened. The symptom
+    # module and Doctor Portal do not need the TensorFlow runtime.
+    import tensorflow as tf
+
+    # This is an inference-only application; do not restore optimizer/metrics.
+    skin_model = tf.keras.models.load_model("skin_model.h5", compile=False)
     class_names = joblib.load("class_names.pkl")
     return skin_model, class_names
 
@@ -288,8 +292,20 @@ def preprocess_image(pil_image):
     return arr
 
 def predict_skin(pil_image, skin_model, class_names, top_k=5):
-    arr   = preprocess_image(pil_image)
-    probs = skin_model.predict(arr)[0]
+    arr = preprocess_image(pil_image)
+
+    # A single image fits in memory as one batch. Calling the model directly
+    # avoids Keras predict()'s tf.data/batch adapter and progress machinery.
+    output = skin_model(arr, training=False)
+    probs = np.asarray(output, dtype=np.float32)[0]
+
+    if probs.ndim != 1 or len(probs) != len(class_names):
+        raise ValueError(
+            "Skin model output does not match the configured class labels."
+        )
+    if not np.isfinite(probs).all():
+        raise ValueError("Skin model returned non-finite prediction scores.")
+
     top_idx = probs.argsort()[::-1][:top_k]
     return [(class_names[i], float(probs[i])) for i in top_idx]
 
