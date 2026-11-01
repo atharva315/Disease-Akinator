@@ -78,6 +78,8 @@ The production repository includes the deployed model artifacts and runtime infe
 
 For the exact verified inference preprocessing, artifact roles, known dataset-provenance gaps, training reproducibility requirements, database lifecycle, and production deployment sequence, see **[Dataset, Model, and Production Lifecycle](docs/PROJECT_LIFECYCLE.md)**.
 
+For the model-development record specifically—including the dataset descriptions, available preprocessing, symptom train/test split, model candidates/ensemble evidence, exported formats, and the reported ~91% / ~82% accuracy figures—see **[Model Development: Datasets, Training, and Exports](docs/MODEL_DEVELOPMENT.md)**. That page distinguishes the available Colab training-code snapshot from older project-summary descriptions where they do not match.
+
 The README's approximate 91% symptom and 82% image accuracy figures are historical project-reported results; the corresponding evaluation reports and test protocol are not present in this repository. They are not clinical-performance claims.
 
 ## Technology stack
