@@ -15,9 +15,13 @@ use it in its live symptom prediction path.
 
 from __future__ import annotations
 
+import os
 import warnings
 from pathlib import Path
 import sys
+
+# Match the application CPU configuration before importing TensorFlow.
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
 
 import joblib
 import numpy as np
@@ -125,7 +129,7 @@ def main() -> int:
         )
 
     print("\n--- Skin image model ---")
-    skin_model = tf.keras.models.load_model(str(paths["skin_model.h5"]))
+    skin_model = tf.keras.models.load_model(str(paths["skin_model.h5"]), compile=False)
     print("PASS: Skin model loaded:", type(skin_model).__name__)
     print("Skin model input shape:", skin_model.input_shape)
     print("Skin model output shape:", skin_model.output_shape)
@@ -145,7 +149,7 @@ def main() -> int:
         raise TypeError("class_names.pkl must contain a non-empty sequence.")
 
     skin_sample = np.zeros((1, 160, 160, 3), dtype=np.float32)
-    skin_output = np.asarray(skin_model.predict(skin_sample, verbose=0))
+    skin_output = np.asarray(skin_model(skin_sample, training=False))
     if skin_output.ndim != 2 or skin_output.shape[0] != 1:
         raise ValueError(
             f"Skin model returned an unexpected output shape: {skin_output.shape}"
