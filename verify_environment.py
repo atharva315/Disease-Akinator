@@ -33,7 +33,7 @@ MODULES = {
     "joblib": "joblib",
     "sklearn": "scikit-learn",
     "scipy": "scipy",
-    "tensorflow": "tensorflow",
+    "tensorflow": "tensorflow-cpu",
     "psycopg": "psycopg",
     "pymongo": "pymongo",
     "gridfs": "pymongo",
