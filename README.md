@@ -1,5 +1,7 @@
 # Disease Akinator
 
+**Production demo:** https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/
+
 A multimodal, Streamlit-based **educational disease-prediction prototype** with two prediction paths—symptom-based prediction and skin-image classification—and a Doctor Portal for storing structured contributions.
 
 > **Medical disclaimer:** Disease Akinator is an academic project, not a medical device. Its outputs are experimental predictions, not diagnoses or treatment advice. Do not use them to make healthcare decisions or delay professional medical care.
@@ -70,6 +72,14 @@ The five model artifacts are tracked with Git LFS:
 
 The symptom and image model files are pre-trained artifacts. The application does not train models at startup.
 
+## Dataset provenance and model-development lifecycle
+
+The production repository includes the deployed model artifacts and runtime inference pipelines. It does **not** currently include the original raw datasets, complete dataset audit reports, training notebooks/scripts, split manifests, or held-out evaluation reports. The image page identifies its classifier as **ResNet50 (DermNet NZ)**; the exact dataset release/licence and original training record are not independently established by the files in this repository. The symptom dataset source/version is likewise not recorded here.
+
+For the exact verified inference preprocessing, artifact roles, known dataset-provenance gaps, training reproducibility requirements, database lifecycle, and production deployment sequence, see **[Dataset, Model, and Production Lifecycle](docs/PROJECT_LIFECYCLE.md)**.
+
+The README's approximate 91% symptom and 82% image accuracy figures are historical project-reported results; the corresponding evaluation reports and test protocol are not present in this repository. They are not clinical-performance claims.
+
 ## Technology stack
 
 | Layer | Technology |
@@ -126,7 +136,7 @@ Disease-Akinator/
 
 ```bash
 git lfs install
-git clone --branch feature/database-migration https://github.com/atharva315/Disease-Akinator.git
+git clone https://github.com/atharva315/Disease-Akinator.git
 cd Disease-Akinator
 git lfs pull
 ```
