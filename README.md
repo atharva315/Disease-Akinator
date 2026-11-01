@@ -235,10 +235,6 @@ The project evaluation previously reported approximately:
 
 These are project-reported model evaluation figures, not independent clinical validation or a guarantee of accuracy on new users or images.
 
-## Screenshots
-
-The `assets/` directory contains application screenshots for the home page, symptom flow, image flow, and Doctor Portal.
-
 ## Responsible use
 
 - Outputs are experimental and may be incorrect.
