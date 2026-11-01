@@ -1,7 +1,7 @@
 # Disease Akinator runtime dependencies
 # Target local environment: CPython 3.13.x, Windows x64 / Streamlit Cloud Linux.
-# TensorFlow 2.20.0 has CPython 3.13 wheels for Windows and Linux.
-# Use this release to avoid the documented TensorFlow 2.21.0 Linux oneDNN crash.
+# CPU-only TensorFlow 2.20.0 has CPython 3.13 wheels for Windows and Linux.
+# Streamlit Community Cloud is CPU-hosted; avoid installing CUDA/GPU runtimes.
 
 streamlit==1.66.1
 numpy>=2.0,<2.2
@@ -9,7 +9,7 @@ Pillow>=11,<14
 joblib>=1.4,<2
 scikit-learn>=1.6,<2
 scipy>=1.13,<2
-tensorflow==2.20.0
+tensorflow-cpu==2.20.0
 h5py>=3.11,<3.15
 
 # Neon PostgreSQL
