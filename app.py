@@ -169,7 +169,7 @@ def page_home():
             <div class="section-icon"></div>
             <div class="badge-done">✓ Available</div>
             <div class="section-title">Doctor Portal</div>
-            <div class="section-desc">Medical professionals can contribute new disease data — symptoms or images — to improve the model.</div>
+            <div class="section-desc">Submit symptom and image contributions for review. Contributions are not automatically used to retrain models.</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Doctor Login", key="btn_doctor", use_container_width=True):
@@ -402,7 +402,7 @@ def page_doctor():
         st.rerun()
 
     st.markdown("<h2 style='text-align:center;'>👨‍⚕️ Doctor Portal</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:#666;'>Verified medical professionals only.</p>",
+    st.markdown("<p style='text-align:center; color:#666;'>Doctor registration collects profile details and a degree PDF; this application does not independently verify qualifications.</p>",
                 unsafe_allow_html=True)
     st.markdown("---")
 
@@ -438,7 +438,7 @@ def page_doctor():
 
     with tab1:
         st.markdown("##### Enter a disease name and its associated symptoms")
-        st.markdown("<p style='font-size:13px; color:#888;'>This data will retrain the symptom prediction model.</p>",
+        st.markdown("<p style='font-size:13px; color:#888;'>Contributions are stored for review; they do not automatically retrain the prediction model.</p>",
                     unsafe_allow_html=True)
         disease_name  = st.text_input("Disease Name *", placeholder="e.g. Dengue Fever", key="sym_disease")
         st.markdown("**Symptoms** — enter one per line *")
@@ -474,7 +474,7 @@ def page_doctor():
 
     with tab2:
         st.markdown("##### Upload a labelled skin disease image")
-        st.markdown("<p style='font-size:13px; color:#888;'>This data will retrain the image classification model.</p>",
+        st.markdown("<p style='font-size:13px; color:#888;'>Contributions are stored for review; they do not automatically retrain the prediction model.</p>",
                     unsafe_allow_html=True)
         disease_img  = st.text_input("Disease Name *", placeholder="e.g. Melanoma", key="img_disease")
         uploaded_img = st.file_uploader("Upload skin image (JPG / PNG) *",
@@ -562,7 +562,7 @@ def _doctor_auth():
                     )
 
     with tab_register:
-        st.markdown("##### Create your verified doctor account")
+        st.markdown("##### Create your doctor account")
         col_a, col_b = st.columns(2)
 
         with col_a:
