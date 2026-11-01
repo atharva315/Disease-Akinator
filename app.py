@@ -1,12 +1,24 @@
+import os
+
+# Keep TensorFlow on its standard CPU kernels in the hosted CPU-only runtime.
+# Set this before importing TensorFlow; do not move it below the import.
+os.environ["TF_ENABLE_ONEDNN_OPTS"] = "0"
+
 import streamlit as st
 import numpy as np
 import joblib
 from PIL import Image
-import tensorflow as tf
-from db_utils import (
-    init_db, register_doctor, login_doctor,
-    submit_symptom_contribution, submit_image_contribution,
-    get_contribution_stats
+
+from database.postgres import get_contribution_stats
+from services.auth_service import authenticate_doctor
+from services.contribution_service import (
+    submit_image_contribution,
+    submit_symptom_contribution,
+)
+from services.doctor_service import (
+    DuplicateDoctorEmailError,
+    DoctorRegistrationError,
+    register_doctor,
 )
 
 # =====================================================
@@ -70,19 +82,23 @@ def load_symptom_assets():
 
 @st.cache_resource
 def load_skin_assets():
-    skin_model  = tf.keras.models.load_model("skin_model.h5")
+    # Import TensorFlow only when the image scanner is opened. The symptom
+    # module and Doctor Portal do not need the TensorFlow runtime.
+    import tensorflow as tf
+
+    # This is an inference-only application; do not restore optimizer/metrics.
+    skin_model = tf.keras.models.load_model("skin_model.h5", compile=False)
     class_names = joblib.load("class_names.pkl")
     return skin_model, class_names
 
 # =====================================================
-# SESSION + DB INIT
+# SESSION STATE
 # =====================================================
 def init_session():
     if "page" not in st.session_state:
         st.session_state.page = "home"
 
 init_session()
-init_db()
 
 # =====================================================
 # HELPERS — SYMPTOM MODULE
@@ -153,7 +169,7 @@ def page_home():
             <div class="section-icon"></div>
             <div class="badge-done">✓ Available</div>
             <div class="section-title">Doctor Portal</div>
-            <div class="section-desc">Medical professionals can contribute new disease data — symptoms or images — to improve the model.</div>
+            <div class="section-desc">Submit symptom and image contributions for review. Contributions are not automatically used to retrain models.</div>
         </div>
         """, unsafe_allow_html=True)
         if st.button("Doctor Login", key="btn_doctor", use_container_width=True):
@@ -276,8 +292,20 @@ def preprocess_image(pil_image):
     return arr
 
 def predict_skin(pil_image, skin_model, class_names, top_k=5):
-    arr   = preprocess_image(pil_image)
-    probs = skin_model.predict(arr)[0]
+    arr = preprocess_image(pil_image)
+
+    # A single image fits in memory as one batch. Calling the model directly
+    # avoids Keras predict()'s tf.data/batch adapter and progress machinery.
+    output = skin_model(arr, training=False)
+    probs = np.asarray(output, dtype=np.float32)[0]
+
+    if probs.ndim != 1 or len(probs) != len(class_names):
+        raise ValueError(
+            "Skin model output does not match the configured class labels."
+        )
+    if not np.isfinite(probs).all():
+        raise ValueError("Skin model returned non-finite prediction scores.")
+
     top_idx = probs.argsort()[::-1][:top_k]
     return [(class_names[i], float(probs[i])) for i in top_idx]
 
@@ -374,7 +402,7 @@ def page_doctor():
         st.rerun()
 
     st.markdown("<h2 style='text-align:center;'>👨‍⚕️ Doctor Portal</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align:center; color:#666;'>Verified medical professionals only.</p>",
+    st.markdown("<p style='text-align:center; color:#666;'>Doctor registration collects profile details and a degree PDF; this application does not independently verify qualifications.</p>",
                 unsafe_allow_html=True)
     st.markdown("---")
 
@@ -391,11 +419,17 @@ def page_doctor():
     </div>
     """, unsafe_allow_html=True)
 
-    stats = get_contribution_stats()
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Total Doctors",   stats["doctors"])
-    c2.metric("Symptom Entries", stats["symptom_entries"])
-    c3.metric("Image Entries",   stats["image_entries"])
+    try:
+        stats = get_contribution_stats()
+    except Exception:
+        st.error("Contribution statistics are temporarily unavailable.")
+        stats = None
+
+    if stats is not None:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Total Doctors",   stats["doctors"])
+        c2.metric("Symptom Entries", stats["symptom_entries"])
+        c3.metric("Image Entries",   stats["image_entries"])
 
     st.markdown("---")
     st.markdown("### What would you like to contribute?")
@@ -404,7 +438,7 @@ def page_doctor():
 
     with tab1:
         st.markdown("##### Enter a disease name and its associated symptoms")
-        st.markdown("<p style='font-size:13px; color:#888;'>This data will retrain the symptom prediction model.</p>",
+        st.markdown("<p style='font-size:13px; color:#888;'>Contributions are stored for review; they do not automatically retrain the prediction model.</p>",
                     unsafe_allow_html=True)
         disease_name  = st.text_input("Disease Name *", placeholder="e.g. Dengue Fever", key="sym_disease")
         st.markdown("**Symptoms** — enter one per line *")
@@ -440,7 +474,7 @@ def page_doctor():
 
     with tab2:
         st.markdown("##### Upload a labelled skin disease image")
-        st.markdown("<p style='font-size:13px; color:#888;'>This data will retrain the image classification model.</p>",
+        st.markdown("<p style='font-size:13px; color:#888;'>Contributions are stored for review; they do not automatically retrain the prediction model.</p>",
                     unsafe_allow_html=True)
         disease_img  = st.text_input("Disease Name *", placeholder="e.g. Melanoma", key="img_disease")
         uploaded_img = st.file_uploader("Upload skin image (JPG / PNG) *",
@@ -492,55 +526,161 @@ def _doctor_auth():
     tab_login, tab_register = st.tabs(["🔑 Login", "📝 Register"])
 
     with tab_login:
-        st.markdown("##### Login with your registered email")
-        email_login = st.text_input("Email address", key="login_email",
-                                    placeholder="doctor@hospital.com")
+        st.markdown("##### Login with your registered email and password")
+        email_login = st.text_input(
+            "Email address",
+            key="login_email",
+            placeholder="doctor@hospital.com",
+        )
+        password_login = st.text_input(
+            "Password",
+            type="password",
+            key="login_password",
+        )
+
         if st.button("Login →", use_container_width=True, key="btn_login"):
-            if not email_login.strip():
-                st.error("Please enter your email.")
+            if not email_login.strip() or not password_login:
+                st.error("Please enter both your email and password.")
             else:
-                with st.spinner("Checking..."):
-                    doctor = login_doctor(email_login.strip().lower())
-                if doctor:
-                    st.session_state.doctor_logged_in = True
-                    st.session_state.doctor_data = doctor
-                    st.success(f"Welcome back, Dr. {doctor['full_name']}!")
-                    st.rerun()
-                else:
-                    st.error("Email not found. Please register first.")
+                try:
+                    with st.spinner("Authenticating..."):
+                        doctor = authenticate_doctor(
+                            email=email_login.strip(),
+                            password=password_login,
+                        )
+                    if doctor is None:
+                        st.error("Invalid email or password.")
+                    else:
+                        st.session_state.doctor_logged_in = True
+                        st.session_state.doctor_data = doctor
+                        st.success(f"Welcome back, Dr. {doctor['full_name']}!")
+                        st.rerun()
+                except Exception:
+                    st.error(
+                        "Doctor login is temporarily unavailable. "
+                        "Please try again shortly."
+                    )
 
     with tab_register:
         st.markdown("##### Create your doctor account")
         col_a, col_b = st.columns(2)
-        with col_a:
-            full_name = st.text_input("Full Name *", placeholder="Dr. Rahul Sharma", key="reg_name")
-            age       = st.number_input("Age *", min_value=25, max_value=80, value=35, key="reg_age")
-            degree    = st.selectbox("Degree *",
-                                     ["MBBS","MD","MS","DM","MCh","BDS","MDS","DNB","Other"],
-                                     key="reg_degree")
-        with col_b:
-            hospital  = st.text_input("Hospital / Clinic", placeholder="City Hospital, Pune", key="reg_hospital")
-            city      = st.text_input("City", placeholder="Pune", key="reg_city")
-            email_reg = st.text_input("Email *", placeholder="doctor@hospital.com", key="reg_email")
 
-        st.markdown("<p style='font-size:12px; color:#aaa;'>* Required fields</p>", unsafe_allow_html=True)
+        with col_a:
+            full_name = st.text_input(
+                "Full Name *",
+                placeholder="Dr. Rahul Sharma",
+                key="reg_name",
+            )
+            age = st.number_input(
+                "Age *",
+                min_value=25,
+                max_value=80,
+                value=35,
+                key="reg_age",
+            )
+            degree = st.selectbox(
+                "Degree *",
+                [
+                    "MBBS", "MD", "MS", "DM", "MCh", "BDS", "MDS", "DNB",
+                    "BAMS", "BHMS", "BUMS", "BSMS", "BNYS", "Other",
+                ],
+                key="reg_degree",
+            )
+
+        with col_b:
+            hospital = st.text_input(
+                "Hospital / Clinic",
+                placeholder="City Hospital, Pune",
+                key="reg_hospital",
+            )
+            city = st.text_input(
+                "City",
+                placeholder="Pune",
+                key="reg_city",
+            )
+            email_reg = st.text_input(
+                "Email *",
+                placeholder="doctor@hospital.com",
+                key="reg_email",
+            )
+
+        custom_degree = None
+        if degree == "Other":
+            custom_degree = st.text_input(
+                "Specify your medical degree *",
+                key="reg_custom_degree",
+            )
+
+        password_reg = st.text_input(
+            "Create Password *",
+            type="password",
+            key="reg_password",
+            help="Use at least 12 characters.",
+        )
+        password_confirm = st.text_input(
+            "Confirm Password *",
+            type="password",
+            key="reg_password_confirm",
+        )
+        degree_pdf = st.file_uploader(
+            "Upload medical degree certificate (PDF, max 10 MB) *",
+            type=["pdf"],
+            key="reg_degree_pdf",
+        )
+
+        st.markdown(
+            "<p style='font-size:12px; color:#aaa;'>"
+            "* Required fields. Password must contain at least 12 characters."
+            "</p>",
+            unsafe_allow_html=True,
+        )
 
         if st.button("Register →", use_container_width=True, key="btn_register"):
-            if not all([full_name.strip(), email_reg.strip()]):
-                st.error("Please fill in all required fields.")
-            elif "@" not in email_reg:
-                st.error("Please enter a valid email address.")
+            if not full_name.strip() or not email_reg.strip():
+                st.error("Please fill in your name and email address.")
+            elif not password_reg or not password_confirm:
+                st.error("Please enter and confirm your password.")
+            elif password_reg != password_confirm:
+                st.error("Passwords do not match.")
+            elif len(password_reg) < 12:
+                st.error("Password must contain at least 12 characters.")
+            elif degree == "Other" and not (custom_degree or "").strip():
+                st.error("Please specify your medical degree.")
+            elif degree_pdf is None:
+                st.error("Please upload your medical degree certificate PDF.")
             else:
-                with st.spinner("Creating account..."):
-                    ok, msg, doctor_id = register_doctor(
-                        full_name=full_name.strip(), age=int(age), degree=degree,
-                        hospital=hospital.strip(), city=city.strip(),
-                        email=email_reg.strip().lower()
+                try:
+                    with st.spinner("Creating your doctor account..."):
+                        doctor = register_doctor(
+                            full_name=full_name,
+                            age=int(age),
+                            degree=degree,
+                            custom_degree=custom_degree,
+                            hospital=hospital,
+                            city=city,
+                            email=email_reg,
+                            password=password_reg,
+                            degree_filename=degree_pdf.name,
+                            degree_file_bytes=degree_pdf.getvalue(),
+                        )
+                    st.success(
+                        "Registration successful. Your degree certificate "
+                        "has been stored securely. You can now log in."
                     )
-                if ok:
-                    st.success(f"✅ {msg} You can now log in.")
-                else:
-                    st.error(f"❌ {msg}")
+                except DuplicateDoctorEmailError as exc:
+                    st.error(str(exc))
+                except ValueError as exc:
+                    st.error(str(exc))
+                except DoctorRegistrationError:
+                    st.error(
+                        "Registration could not be completed safely. "
+                        "Please try again or contact the project administrator."
+                    )
+                except Exception:
+                    st.error(
+                        "Registration is temporarily unavailable. "
+                        "Please try again shortly."
+                    )
 
 # =====================================================
 # ROUTER
