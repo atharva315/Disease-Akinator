@@ -33,6 +33,12 @@ The statement “ResNet50 (DermNet NZ)” is the model/source label displayed by
 
 The repository should contain code, metadata, and evaluation reports—not private, restricted, or non-redistributable medical images or raw data. A future reproducibility package should record the source URL, version/revision, access date, licence/terms, attribution, dataset checksum, and class/row counts without copying restricted source data into GitHub.
 
+## Model-development detail
+
+For the focused dataset-to-model record, including documented dataset descriptions, preprocessing, the available symptom train/test split and estimator code, image-model training notes, exported formats and historical accuracy figures, see [Model Development: Datasets, Training, and Exports](MODEL_DEVELOPMENT.md).
+
+That document also records mismatches between historical project summaries and the surviving training-code snapshot. Treat the reported accuracies as project-reported results, not independently reproduced clinical performance.
+
 ## 3. Model artifacts delivered to production
 
 The following artifacts are tracked with Git LFS:
