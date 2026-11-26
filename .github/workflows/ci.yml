@@ -56,4 +56,5 @@ jobs:
           python -m pytest -q \
             tests/test_auth_service.py \
             tests/test_doctor_service.py \
-            tests/test_contribution_service.py
+            tests/test_contribution_service.py \
+            tests/test_mongodb_config.py
