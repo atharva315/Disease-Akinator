@@ -32,8 +32,8 @@ MAX_DEGREE_BYTES = 10 * 1024 * 1024
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 
 _PDF_SIGNATURE = b"%PDF-"
-_PNG_SIGNATURE = b"\\x89PNG\\r\\n\\x1a\\n"
-_JPEG_SIGNATURE = b"\\xff\\xd8\\xff"
+_PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+_JPEG_SIGNATURE = b"\xff\xd8\xff"
 
 
 class MongoConfigurationError(RuntimeError):
