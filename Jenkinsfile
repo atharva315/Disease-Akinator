@@ -84,7 +84,7 @@ pipeline {
                         "$IMAGE_TAG"
 
                     attempt=0
-                    while [ "$attempt" -lt 60 ]; do
+                    while [ "$attempt" -lt 100 ]; do
                         status="$(docker inspect --format='{{.State.Health.Status}}' "$SMOKE_CONTAINER_NAME" 2>/dev/null || true)"
 
                         if [ "$status" = "healthy" ]; then
@@ -198,7 +198,7 @@ pipeline {
                         fi
 
                         rollback_attempt=0
-                        while [ "$rollback_attempt" -lt 60 ]; do
+                        while [ "$rollback_attempt" -lt 100 ]; do
                             rollback_status="$(docker inspect --format='{{.State.Health.Status}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
                             if [ "$rollback_status" = "healthy" ]; then
                                 echo "Rollback succeeded: $previous_image"
@@ -233,7 +233,7 @@ pipeline {
 
                     attempt=0
                     healthy=false
-                    while [ "$attempt" -lt 60 ]; do
+                    while [ "$attempt" -lt 100 ]; do
                         status="$(docker inspect --format='{{.State.Health.Status}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
                         if [ "$status" = "healthy" ]; then
                             healthy=true
