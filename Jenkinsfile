@@ -178,13 +178,58 @@ pipeline {
                     docker pull "$RELEASE_IMAGE_URI"
                     previous_image="$(docker inspect --format='{{.Config.Image}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
 
+                    rollback_previous() {
+                        echo "Attempting rollback to the previous application image."
+                        docker rm -f "$APP_CONTAINER_NAME" >/dev/null 2>&1 || true
+
+                        if [ -z "$previous_image" ]; then
+                            echo "No previous application image was found; automatic rollback is unavailable."
+                            return 1
+                        fi
+
+                        if ! docker run --detach \
+                            --name "$APP_CONTAINER_NAME" \
+                            --restart unless-stopped \
+                            --publish 127.0.0.1:8501:8501 \
+                            --env-file "$temp_env" \
+                            "$previous_image"; then
+                            echo "Rollback container could not be started."
+                            return 1
+                        fi
+
+                        rollback_attempt=0
+                        while [ "$rollback_attempt" -lt 60 ]; do
+                            rollback_status="$(docker inspect --format='{{.State.Health.Status}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
+                            if [ "$rollback_status" = "healthy" ]; then
+                                echo "Rollback succeeded: $previous_image"
+                                return 0
+                            fi
+
+                            rollback_running="$(docker inspect --format='{{.State.Running}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
+                            if [ "$rollback_running" != "true" ] || [ "$rollback_status" = "unhealthy" ]; then
+                                break
+                            fi
+
+                            rollback_attempt=$((rollback_attempt + 1))
+                            sleep 3
+                        done
+
+                        docker logs "$APP_CONTAINER_NAME" || true
+                        echo "Rollback container did not become healthy."
+                        return 1
+                    }
+
                     docker rm -f "$APP_CONTAINER_NAME" >/dev/null 2>&1 || true
-                    docker run --detach \
+                    if ! docker run --detach \
                         --name "$APP_CONTAINER_NAME" \
                         --restart unless-stopped \
                         --publish 127.0.0.1:8501:8501 \
                         --env-file "$temp_env" \
-                        "$RELEASE_IMAGE_URI"
+                        "$RELEASE_IMAGE_URI"; then
+                        echo "FAIL: New production container could not be started."
+                        rollback_previous || true
+                        exit 1
+                    fi
 
                     attempt=0
                     healthy=false
@@ -211,31 +256,7 @@ pipeline {
 
                     echo "FAIL: New production container failed its health check."
                     docker logs "$APP_CONTAINER_NAME" || true
-                    docker rm -f "$APP_CONTAINER_NAME" >/dev/null 2>&1 || true
-
-                    if [ -n "$previous_image" ]; then
-                        echo "Attempting rollback to the previous image."
-                        docker run --detach \
-                            --name "$APP_CONTAINER_NAME" \
-                            --restart unless-stopped \
-                            --publish 127.0.0.1:8501:8501 \
-                            --env-file "$temp_env" \
-                            "$previous_image"
-
-                        rollback_attempt=0
-                        while [ "$rollback_attempt" -lt 60 ]; do
-                            rollback_status="$(docker inspect --format='{{.State.Health.Status}}' "$APP_CONTAINER_NAME" 2>/dev/null || true)"
-                            if [ "$rollback_status" = "healthy" ]; then
-                                echo "Rollback succeeded: $previous_image"
-                                break
-                            fi
-                            rollback_attempt=$((rollback_attempt + 1))
-                            sleep 3
-                        done
-                    else
-                        echo "No previous application image was found; automatic rollback is unavailable."
-                    fi
-
+                    rollback_previous || true
                     exit 1
                 '''
             }
