@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest an improvement to Disease Akinator.
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or user need
+      description: What limitation or workflow should be improved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behaviour you would like to see.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+    validations:
+      required: false
+  - type: textarea
+    id: impact
+    attributes:
+      label: Risks, data, or deployment impact
+      description: Mention whether this affects model inputs, user-submitted data, databases, privacy, or production deployment.
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety
+      options:
+        - label: This request does not propose using model output as a clinical diagnosis or treatment decision.
+          required: true

@@ -1,252 +1,299 @@
 # Disease Akinator
 
-**Production demo:** https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/
+[![GitHub Actions CI](https://github.com/atharva315/Disease-Akinator/actions/workflows/ci.yml/badge.svg)](https://github.com/atharva315/Disease-Akinator/actions/workflows/ci.yml)
+[![Python 3.13](https://img.shields.io/badge/Python-3.13-blue)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/UI-Streamlit-red)](https://streamlit.io/)
 
-A multimodal, Streamlit-based **educational disease-prediction prototype** with two prediction paths—symptom-based prediction and skin-image classification—and a Doctor Portal for storing structured contributions.
+**Production application:** [https://disease-akinator.duckdns.org](https://disease-akinator.duckdns.org)  
+**Source code:** [github.com/atharva315/Disease-Akinator](https://github.com/atharva315/Disease-Akinator)
 
-> **Medical disclaimer:** Disease Akinator is an academic project, not a medical device. Its outputs are experimental predictions, not diagnoses or treatment advice. Do not use them to make healthcare decisions or delay professional medical care.
+> **Availability note:** The production application runs on an on-demand AWS EC2 instance and is intentionally stopped when it is not needed. The URL is unavailable while that instance is stopped. Its public IPv4 address can change after a stop/start; operators must then update the DuckDNS record and MongoDB Atlas network allowlist.
+>
+> **Medical disclaimer:** Disease Akinator is an academic/educational software prototype, not a medical device. Predictions and confidence scores are experimental model outputs, not diagnoses, calibrated clinical certainty, or treatment advice. Do not use the application to make healthcare decisions or delay professional medical care.
 
-## Features
+## Overview
+
+Disease Akinator is a multimodal Streamlit application with two machine-learning inference paths and a database-backed Doctor Portal:
+
+1. **Symptom → disease prediction:** an interactive questionnaire uses a saved scikit-learn probability model.
+2. **Skin image → condition classification:** an uploaded image is preprocessed and passed to a TensorFlow/Keras image classifier.
+3. **Doctor Portal:** doctors can register, log in, and submit structured symptom contributions and labelled skin images for later review.
+
+The production application serves pre-trained model artifacts. It does not train models at startup, and Doctor Portal contributions do not automatically retrain or change either deployed model.
+
+## Live application
+
+- **AWS EC2 production deployment:** [disease-akinator.duckdns.org](https://disease-akinator.duckdns.org)
+- **Legacy Streamlit Community Cloud deployment:** [open legacy deployment](https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/)
+
+The EC2 deployment is the current production target described by the CI/CD documentation. The legacy Streamlit-hosted deployment is separate and may not track the latest production release.
+
+## Application features
 
 ### 1. Symptom-based prediction
-- Interactively asks up to 25 symptom questions.
-- Accepts four response levels: Yes, Probably, Probably Not, and No.
-- Uses the saved scikit-learn probability model and symptom feature list.
-- Displays prediction results from the model's class probabilities.
+
+- Presents symptoms from the saved feature list in sequence.
+- Supports four answer levels: **Yes**, **Probably**, **Probably Not**, and **No**.
+- Converts answers to `1.0`, `0.8`, `0.2`, and `0.0`, respectively.
+- Builds a feature vector in the exact order stored in `feature_names.pkl`.
+- Uses the classifier's `predict_proba` output to update the prediction after answers.
+- Uses a configured confidence threshold of `0.87` and a maximum of 25 questions per round before offering a checkpoint.
+- Displays the leading prediction and up to three alternatives.
 
 ### 2. Skin-image classification
-- Accepts JPEG and PNG images.
-- Loads the saved TensorFlow/Keras skin-classification model.
-- Resizes and prepares images for the model's 160 × 160 RGB input.
-- Displays the top five predicted classes and their confidence scores.
+
+- Accepts JPG/JPEG and PNG images.
+- Converts the image to RGB, resizes it to `160 × 160`, scales pixel values to `[0, 1]`, and adds a batch dimension.
+- Loads the saved TensorFlow/Keras model for inference.
+- Maps output indices through `class_names.pkl`.
+- Displays the top five predicted classes and their model scores.
+
+The application UI labels the image model **ResNet50 (DermNet NZ)**. The original dataset revision, licensing record, exact train/validation split, and complete training configuration are not preserved in this repository; see the model-development documentation before making reproducibility claims.
 
 ### 3. Doctor Portal
-- Doctor registration with profile details, email, password, and a degree-document PDF.
-- Email/password login; passwords are hashed with Argon2id.
-- Symptom contributions are stored as structured PostgreSQL records.
-- Image contributions are stored as files in MongoDB GridFS, with metadata in PostgreSQL.
-- Dashboard statistics are read from PostgreSQL.
 
-**Important current limitations**
-- Registration collects doctor-entered details and a PDF; the application does not independently verify the qualification or approve the account. Do not describe an account as a verified doctor.
-- Contributions are stored for future review/research. They do **not** automatically retrain or update the deployed prediction models.
-- An administrator review/approval workflow, email verification, and password-reset workflow are not implemented yet.
+- Doctor registration collects a profile, email, password, and medical degree PDF.
+- Login verifies passwords stored as **Argon2id hashes**.
+- Symptom-to-disease contributions are stored as structured PostgreSQL records.
+- Labelled image contributions are stored in MongoDB Atlas GridFS, with metadata and the file reference stored in PostgreSQL.
+- The dashboard reads contribution statistics from PostgreSQL.
 
-## Architecture
+**Portal limitations:** Registration and PDF upload do not independently verify a medical qualification or approve an account. Email verification, password reset, and a dedicated administrator approval/review interface are not implemented. Contributions are stored for later review/research and are not fed into model training automatically.
 
-```mermaid
-flowchart TD
-    U[User] --> S[Streamlit application]
-    S --> SY[Symptom prediction model]
-    S --> IM[Skin image model]
-    S --> DP[Doctor Portal]
-    DP --> SV[Doctor and contribution services]
-    SV --> PG[(Neon PostgreSQL)]
-    SV --> MG[(MongoDB Atlas GridFS)]
-    PG --- P1[Profiles and contribution metadata]
-    MG --- M1[Degree PDFs and contribution images]
-```
+## System architecture
 
-### Data storage
+The production application is hosted on one EC2 instance. Nginx handles public HTTP/HTTPS traffic and proxies requests to the Streamlit Docker container bound to loopback. The application connects to external managed databases; neither database is hosted on the EC2 instance.
 
-**Neon PostgreSQL** stores structured records in these tables:
-- `doctors`
-- `symptom_contributions`
-- `symptom_contribution_items`
-- `image_contributions`
+~~~mermaid
+flowchart TB
+    B[Browser] --> DNS[DuckDNS hostname]
+    DNS --> N[Nginx reverse proxy on AWS EC2]
+    N -->|HTTPS at Nginx; proxy to loopback| S[Streamlit app in Docker]
+    S --> SM[Symptom model + feature schema]
+    S --> IM[Skin image model + class labels]
+    S --> DP[Doctor Portal services]
+    DP --> PG[(Neon PostgreSQL)]
+    DP --> MG[(MongoDB Atlas GridFS)]
+    PG --- P[Doctor profiles and contribution metadata]
+    MG --- F[Degree PDFs and contribution image binaries]
+~~~
 
-**MongoDB Atlas GridFS** stores binary files in two buckets:
-- `doctor_degrees`
-- `contribution_images`
-
-The PostgreSQL records retain the GridFS file IDs and relevant file metadata. The application reads credentials from environment variables or Streamlit secrets; credentials must never be committed to Git.
-
-### Model artifacts
-
-The five model artifacts are tracked with Git LFS:
-- `final_ensemble.pkl`
-- `feature_names.pkl`
-- `imputer.pkl`
-- `skin_model.h5`
-- `class_names.pkl`
-
-The symptom and image model files are pre-trained artifacts. The application does not train models at startup.
-
-## Dataset provenance and model-development lifecycle
-
-The production repository includes the deployed model artifacts and runtime inference pipelines. It does **not** currently include the original raw datasets, complete dataset audit reports, training notebooks/scripts, split manifests, or held-out evaluation reports. The image page identifies its classifier as **ResNet50 (DermNet NZ)**; the exact dataset release/licence and original training record are not independently established by the files in this repository. The symptom dataset source/version is likewise not recorded here.
-
-For the exact verified inference preprocessing, artifact roles, known dataset-provenance gaps, training reproducibility requirements, database lifecycle, and production deployment sequence, see **[Dataset, Model, and Production Lifecycle](docs/PROJECT_LIFECYCLE.md)**.
-
-For the model-development record specifically—including the dataset descriptions, available preprocessing, symptom train/test split, model candidates/ensemble evidence, exported formats, and the reported ~91% / ~82% accuracy figures—see **[Model Development: Datasets, Training, and Exports](docs/MODEL_DEVELOPMENT.md)**. That page distinguishes the available Colab training-code snapshot from older project-summary descriptions where they do not match.
-
-The README's approximate 91% symptom and 82% image accuracy figures are historical project-reported results; the corresponding evaluation reports and test protocol are not present in this repository. They are not clinical-performance claims.
+The CI/CD flow is documented in [CI/CD Workflow](docs/CI_CD.md). In summary, GitHub Actions checks pull requests, while Jenkins polls the repository, validates main, builds and verifies a Docker image, publishes the commit-tagged image to Amazon ECR, retrieves runtime configuration from AWS Systems Manager Parameter Store, and deploys the image on EC2.
 
 ## Technology stack
 
-| Layer | Technology |
+| Layer | Technologies |
 |---|---|
-| UI and application | Python, Streamlit |
-| Symptom prediction | scikit-learn, joblib, NumPy |
-| Skin-image prediction | TensorFlow/Keras, Pillow |
-| Structured database | Neon PostgreSQL, Psycopg 3 |
-| Binary file storage | MongoDB Atlas, PyMongo GridFS |
-| Password hashing | Argon2id via argon2-cffi |
-| Large model files | Git LFS |
-| Tests | pytest, unit and database integration tests |
+| User interface | Python 3.13, Streamlit |
+| Symptom inference | scikit-learn 1.6.1, Joblib, NumPy |
+| Image inference | TensorFlow CPU 2.20.0, Keras, Pillow |
+| Structured data | Neon PostgreSQL, Psycopg 3 |
+| Binary file storage | MongoDB Atlas, PyMongo, GridFS |
+| Password hashing | Argon2id (argon2-cffi) |
+| Model artifact versioning | Git LFS |
+| Automated checks | GitHub Actions, pytest |
+| Image build and production release | Docker, Jenkins, Amazon ECR |
+| Runtime configuration | AWS Systems Manager Parameter Store (SecureString) |
+| Hosting and networking | AWS EC2, Nginx, DuckDNS, Let's Encrypt |
 
-## Repository layout
+## Repository structure
 
-```text
+~~~text
 Disease-Akinator/
-├── app.py
+├── .github/
+│   ├── ISSUE_TEMPLATE/
+│   │   ├── bug_report.yml
+│   │   └── feature_request.yml
+│   ├── pull_request_template.md
+│   └── workflows/ci.yml
 ├── database/
-│   ├── __init__.py
-│   ├── postgres.py
 │   ├── mongodb.py
+│   ├── postgres.py
 │   └── schema.sql
+├── docs/
+│   ├── ARCHITECTURE.md
+│   ├── CI_CD.md
+│   ├── DATABASE.md
+│   ├── DEPLOYMENT.md
+│   ├── DEMO_GUIDE.md
+│   ├── MODEL_DEVELOPMENT.md
+│   ├── OPERATIONS.md
+│   └── PROJECT_LIFECYCLE.md
 ├── services/
-│   ├── __init__.py
 │   ├── auth_service.py
-│   ├── doctor_service.py
-│   └── contribution_service.py
+│   ├── contribution_service.py
+│   └── doctor_service.py
 ├── tests/
-│   ├── test_auth_service.py
-│   ├── test_auth_integration.py
-│   ├── test_doctor_service.py
-│   ├── test_doctor_registration_integration.py
-│   ├── test_contribution_service.py
-│   ├── test_contribution_integration.py
-│   ├── test_postgres_integration.py
-│   └── test_mongodb_integration.py
-├── assets/
-├── verify_environment.py
-├── verify_model_assets.py
+│   ├── service/configuration unit tests
+│   └── database integration tests
+├── app.py
+├── Dockerfile
+├── Jenkinsfile
 ├── requirements.txt
-└── README.md
-```
+├── requirements-ci.txt
+├── verify_environment.py
+└── verify_model_assets.py
+~~~
+
+The five model/metadata files are stored at the repository root and tracked with Git LFS:
+
+| Artifact | Purpose |
+|---|---|
+| `final_ensemble.pkl` | Serialized symptom prediction classifier/ensemble |
+| `feature_names.pkl` | Ordered symptom feature schema |
+| `imputer.pkl` | Retained imputer artifact; not called by the current live symptom-inference path |
+| `skin_model.h5` | TensorFlow/Keras skin-image classifier |
+| `class_names.pkl` | Output-index-to-skin-class mapping |
+
+The original training datasets and full training workspaces are not stored in this application repository. See [Model Development Record](docs/MODEL_DEVELOPMENT.md) for documented provenance gaps and historical metric context.
 
 ## Run locally
 
 ### Prerequisites
-- Windows, macOS, or Linux.
-- Python **3.13.x** for the dependency set currently tested by this project.
+
+- Python **3.13.x**.
 - Git and Git LFS.
-- Access to a Neon PostgreSQL database and MongoDB Atlas cluster to use the Doctor Portal.
+- Docker, if you want to run the container locally.
+- Neon PostgreSQL and MongoDB Atlas access for Doctor Portal operations. The prediction pages can run without database credentials.
 
-### 1. Clone and download the model files
+### 1. Clone the repository and download model artifacts
 
-```bash
-git lfs install
-git clone https://github.com/atharva315/Disease-Akinator.git
-cd Disease-Akinator
-git lfs pull
-```
+    git lfs install
+    git clone https://github.com/atharva315/Disease-Akinator.git
+    cd Disease-Akinator
+    git lfs pull
 
-### 2. Create the Python environment
+Check that the five model files are real LFS objects rather than small pointer files:
 
-**Windows Command Prompt**
-```cmd
-py -3.13 -m venv .venv
-.venv\Scripts\activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
+    git lfs ls-files
+
+### 2. Create and activate a virtual environment
+
+**Windows PowerShell**
+
+    py -3.13 -m venv .venv
+    .\.venv\Scripts\Activate.ps1
+    python -m pip install --upgrade pip
+    python -m pip install -r requirements.txt
 
 **macOS / Linux**
-```bash
-python3.13 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
-```
 
-### 3. Configure database credentials
+    python3.13 -m venv .venv
+    source .venv/bin/activate
+    python -m pip install --upgrade pip
+    python -m pip install -r requirements.txt
 
-Create `.streamlit/secrets.toml` locally (this file is ignored by Git) with your own connection strings:
+### 3. Configure local database credentials
 
-```toml
-[postgres]
-url = "postgresql://<user>:<password>@<host>/<database>?sslmode=require"
+Copy `.env.example` to `.env` and replace the placeholders with credentials for your own isolated development databases. The `.env` file is ignored by Git.
 
-[mongodb]
-uri = "mongodb+srv://<user>:<password>@<cluster-host>/?retryWrites=true&w=majority"
-```
+    cp .env.example .env
 
-Replace every placeholder with credentials from your own services. Do not paste real credentials into source files, commits, issues, screenshots, or chat messages.
+The application reads:
 
-The application also supports these environment variables:
 - `DISEASE_AKINATOR_POSTGRES_URL`
 - `DISEASE_AKINATOR_MONGODB_URI`
+- `DISEASE_AKINATOR_MONGODB_DATABASE` (optional; defaults to `disease_akinator`)
 
-### 4. Prepare the databases
+Alternatively, local Streamlit development can use `.streamlit/secrets.toml`:
+
+    [postgres]
+    url = "postgresql://<user>:<password>@<host>/<database>?sslmode=require"
+
+    [mongodb]
+    uri = "mongodb+srv://<user>:<password>@<cluster-host>/?retryWrites=true&w=majority"
+    database = "disease_akinator"
+
+Never commit real connection strings, passwords, API keys, certificates, or database exports. Do not reuse production database credentials for local development or testing.
+
+### 4. Prepare databases (Doctor Portal only)
 
 1. Create a PostgreSQL database and a restricted application role.
-2. Apply `database/schema.sql` using the database owner/admin role after creating the application role referenced by the script.
-3. Create a MongoDB Atlas database/cluster and an application database user with access to the `disease_akinator` database.
-4. Configure network access for the environment where the app will run. Avoid broad public access where your hosting/network setup allows restricted IP access.
+2. Review and apply `database/schema.sql` with the database owner/admin role. The script grants the application role DML access and assumes the role names documented in the file.
+3. Create a MongoDB Atlas database user with the access required for the `disease_akinator` database and GridFS buckets.
+4. Restrict network access to the app host where possible.
 
-The application expects the PostgreSQL database name `disease_akinator`, and creates/uses the GridFS buckets `doctor_degrees` and `contribution_images`.
+See [Database Setup and Data Model](docs/DATABASE.md) for schema details and the cross-database upload lifecycle.
 
-### 5. Run the preflight checks and app
+### 5. Run preflight checks and start Streamlit
 
-```bash
-python verify_environment.py
-python verify_model_assets.py
-python -m pip install pytest
-python -m pytest -q
-python -m streamlit run app.py
-```
+    python verify_environment.py
+    python verify_model_assets.py
+    python -m pip install -r requirements-ci.txt
+    python -m pytest -q tests/test_auth_service.py tests/test_doctor_service.py tests/test_contribution_service.py tests/test_mongodb_config.py
+    python -m streamlit run app.py
 
-Open the local URL printed by Streamlit. Symptom and image prediction do not require database credentials; Doctor Portal registration, login, contributions, and dashboard statistics require working PostgreSQL and MongoDB configuration.
+Open the local URL printed by Streamlit, normally `http://localhost:8501`.
 
-## File upload limits
+`verify_environment.py` checks the Python/runtime setup, imports, syntax, model assets, and whether database configuration is present; it does not print secret values or test database connectivity. `verify_model_assets.py` loads the model artifacts and runs synthetic inference checks.
 
-| Upload | Accepted format | Maximum size |
-|---|---|---:|
-| Doctor degree document | PDF | 10 MB |
-| Contribution image | JPEG or PNG | 5 MB |
+## Run with Docker
 
-The backend checks file extensions, signatures, and size limits before storing uploads.
+Build after Git LFS objects have been downloaded:
 
-## Tests and verification
+    docker build -t disease-akinator:local .
 
-The repository includes unit tests and integration tests for authentication, doctor registration, PostgreSQL operations, MongoDB/GridFS operations, and contribution workflows.
+Run the application, providing a local `.env` file containing the variables above:
 
-In the development environment used for this migration, the reported local test run completed with **31 tests passed**. Database integration tests require test database credentials and should be run only against a dedicated test environment—not a production database.
+    docker run --rm --name disease-akinator-local -p 8501:8501 --env-file .env disease-akinator:local
 
-## Deployment notes
+Then open `http://localhost:8501`.
 
-The application is designed for Streamlit hosting. For a staging or production deployment:
+The Docker image uses Python 3.13 slim, installs the runtime dependencies, runs as a non-root `app` user, exposes Streamlit on port 8501, and defines a health check at `/_stcore/health`. The production container is published only on the EC2 loopback interface; Nginx is the public entry point.
 
-1. Deploy the intended Git branch with `app.py` as the entry point.
-2. Add the `postgres` and `mongodb` sections to the hosting provider's secrets configuration.
-3. Ensure the host can access the Neon and MongoDB Atlas services.
-4. Confirm Git LFS model artifacts are available to the build/runtime.
-5. Run the diagnosis and Doctor Portal smoke tests after deployment.
+## Tests and continuous integration
 
-Do not reuse production database credentials in staging. Use separate staging database resources or isolated staging data.
+The repository has unit and database-integration test modules. The GitHub Actions `unit-tests` job currently:
 
-## Evaluation results
+1. Checks out the repository.
+2. Sets up Python 3.13.
+3. Installs `requirements-ci.txt`.
+4. Compiles the application, database, service, and test Python packages.
+5. Runs the focused service/configuration unit-test modules:
+   - `tests/test_auth_service.py`
+   - `tests/test_doctor_service.py`
+   - `tests/test_contribution_service.py`
+   - `tests/test_mongodb_config.py`
 
-The project evaluation previously reported approximately:
-- **91%** symptom-prediction accuracy.
-- **82%** skin-image classification accuracy.
+The same focused checks run in the Jenkins pipeline before a release image is published. Database integration tests are present in `tests/`; run them only after configuring dedicated test databases, never against production.
 
-These are project-reported model evaluation figures, not independent clinical validation or a guarantee of accuracy on new users or images.
+See [CI/CD workflow](docs/CI_CD.md), [Contributing guide](CONTRIBUTING.md), [Deployment guide](docs/DEPLOYMENT.md), and [Operations runbook](docs/OPERATIONS.md).
 
-## Responsible use
+## Model results and limitations
 
-- Outputs are experimental and may be incorrect.
-- Confidence scores are model probabilities, not calibrated clinical certainty.
-- Uploaded health-related material should be synthetic or shared only with appropriate permission and safeguards.
-- Do not upload identifiable patient information.
-- Doctor registration and document upload do not constitute professional credential verification.
+Historical project records report approximately:
 
-## Production CI/CD Deployment
+| Model path | Reported result | Interpretation |
+|---|---:|---|
+| Symptom → disease | ~91% accuracy | Historical project-reported figure; its exact evaluation report and test protocol are not archived here |
+| Skin image → condition | ~82% validation accuracy | Historical project-reported validation figure; split manifest and evaluation report are not archived here |
 
-Changes merged into `main` trigger Jenkins to validate the project, build a Docker image, push the commit-tagged image to Amazon ECR, and deploy it to the dedicated AWS EC2 instance. Production environment variables are retrieved securely from AWS Systems Manager Parameter Store.
+These figures are not independently reproduced by the current deployment pipeline and are not clinical-performance claims. The deployment smoke test checks model loading and synthetic inference compatibility, not predictive quality on new patient data.
+
+## Responsible use, privacy, and security
+
+- Outputs can be incorrect. Confidence scores are model probabilities, not calibrated clinical certainty.
+- Do not upload identifiable patient information or real patient records to this academic prototype.
+- Use synthetic or appropriately consented material for demonstrations and testing.
+- Doctor-entered profile details and degree uploads are not independently verified by a credential authority.
+- The application does not provide a clinical approval workflow, email verification, password reset, or automatic model retraining from contributions.
+- Keep secrets in local ignored configuration or AWS SSM SecureString. Never put secret values in GitHub, logs, screenshots, sample data, or issues.
+
+See [Security Policy](SECURITY.md) and [Database Documentation](docs/DATABASE.md).
+
+## Documentation index
+
+| Document | Contents |
+|---|---|
+| [Architecture](docs/ARCHITECTURE.md) | Runtime components, request/data flow, and deployment topology |
+| [CI/CD](docs/CI_CD.md) | Branch strategy, GitHub Actions, Jenkins stages, ECR publishing, and release gates |
+| [Deployment](docs/DEPLOYMENT.md) | Local Docker and AWS production deployment configuration |
+| [Operations](docs/OPERATIONS.md) | Start/stop, restart, health checks, DNS, and troubleshooting |
+| [Database](docs/DATABASE.md) | PostgreSQL schema, MongoDB GridFS buckets, environment variables, and upload lifecycle |
+| [Model development](docs/MODEL_DEVELOPMENT.md) | Available training-code evidence, datasets, models, artifacts, and reported metrics |
+| [Project lifecycle](docs/PROJECT_LIFECYCLE.md) | What is reproducible, what is deployed, and known provenance gaps |
+| [Demo guide](docs/DEMO_GUIDE.md) | Suggested walkthrough for a project demonstration video |
 
 ## License
 
-No license is currently specified. Unless a license is added, the repository should be treated as source-available for viewing, not as granting permission to reuse, modify, or redistribute the code.
+No open-source license is currently specified. Until a license is added by the repository owner, the repository is source-available for viewing and does not grant permission to reuse, modify, or redistribute the code or model artifacts.

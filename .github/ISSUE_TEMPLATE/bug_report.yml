@@ -1,0 +1,65 @@
+name: Bug report
+description: Report a reproducible problem in the application, tests, or deployment.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Do not include passwords, database URLs, patient information, private documents, or other sensitive data. Use synthetic examples.
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      options:
+        - Symptom prediction
+        - Skin-image classification
+        - Doctor Portal / authentication
+        - Database / file upload
+        - Local development
+        - GitHub Actions / Jenkins / deployment
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the unexpected behaviour.
+      placeholder: A concise description of the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Use synthetic data and remove all credentials or personal information.
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and logs
+      description: Include OS, Python version, commit/branch, and sanitized error messages. Remove tokens, URLs with credentials, IDs, and private data.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety checks
+      options:
+        - label: I have removed credentials, personal information, and patient data.
+          required: true
+        - label: I have checked for an existing issue describing the same problem.
+          required: true
