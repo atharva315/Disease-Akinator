@@ -41,7 +41,7 @@ Activate the environment, then install runtime dependencies:
     python -m pip install --upgrade pip
     python -m pip install -r requirements.txt
 
-Configure isolated local PostgreSQL and MongoDB credentials using .env or .streamlit/secrets.toml. See .env.example and the README. Prediction pages can run without database configuration; Doctor Portal operations require both databases.
+For direct Streamlit development, configure isolated PostgreSQL and MongoDB credentials in `.streamlit/secrets.toml` or export the supported environment variables in your shell; the app does not automatically load a `.env` file. For Docker, use `.env.example` as the template for a local `.env` file passed with `--env-file`. See the README. Prediction pages can run without database configuration; Doctor Portal operations require both databases.
 
 ## Checks to run
 
