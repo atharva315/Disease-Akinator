@@ -29,8 +29,12 @@ pipeline {
                 sh '''
                     set -eu
                     git lfs version
-                    git lfs install --local
+                    # Jenkins reserves core.hooksPath as /dev/null to prevent
+                    # repository hooks from running during checkout. Install
+                    # LFS filters locally but skip repository hook creation.
+                    git lfs install --local --skip-repo
                     git lfs pull
+                    git lfs ls-files
                 '''
             }
         }
