@@ -1,208 +1,199 @@
 # Disease Akinator — Dataset, Model, and Production Lifecycle
 
-This document records the end-to-end lifecycle that can be verified from the current public Disease Akinator repository and deployed application. It deliberately separates **confirmed implementation details** from **training provenance that is not currently archived in this repository**.
+This document connects the model artifacts, inference paths, Doctor Portal data lifecycle, and current production deployment. It separates implementation details verified from the repository from model-training provenance that is not fully archived.
 
-- Production repository: https://github.com/atharva315/Disease-Akinator
-- Production application: https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/
-- Default branch: `main`
+- Repository: https://github.com/atharva315/Disease-Akinator
+- Current production application: https://disease-akinator.duckdns.org
+- Legacy Streamlit-hosted deployment: https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/
+- Default branch: main
 
 ## 1. Product scope
 
-Disease Akinator is a Streamlit educational prototype with three user-facing areas:
+Disease Akinator is a Streamlit educational prototype with three user-facing areas: symptom-based disease prediction, skin-image classification, and a Doctor Portal for registration, login, and labelled symptom/image contributions.
 
-1. Symptom-based disease prediction.
-2. Skin-image classification.
-3. Doctor Portal for account registration, login, and labelled symptom/image contributions.
+The production application is an inference and contribution application. It does not train either prediction model at startup and does not automatically retrain models from submitted contributions.
 
-The deployed application is an inference and contribution application. It does not train either prediction model at startup and does not automatically retrain models from submitted contributions.
+> **Medical limitation:** This is not a clinically validated medical device. Predictions and confidence scores are experimental model outputs, not diagnoses, calibrated clinical certainty, or treatment advice.
 
-> **Medical limitation:** This is not a clinically validated medical device. Predictions and confidence scores are experimental model outputs, not diagnoses, calibrated clinical certainty, or treatment advice. Users should consult qualified healthcare professionals.
+## 2. Dataset and training provenance
 
-## 2. Dataset provenance — what is and is not recorded
+The public application repository contains the deployed model artifacts and the metadata needed by the inference code. It does not contain the complete original raw datasets, all training notebooks/scripts, dataset audit packages, split manifests, training configurations, or held-out evaluation reports.
 
-The public repository contains the deployed model artifacts and their runtime label/feature files. It does **not** contain the original raw training datasets or a complete dataset-audit package.
+The focused [Model Development Record](MODEL_DEVELOPMENT.md) documents the available training-code snapshot, historical project notes, known differences between those sources, and the metrics reported by the project.
 
-| Workstream | What the repository confirms | What is not recorded in this repository |
-|---|---|---|
-| Symptom-to-disease | The deployed model consumes the ordered feature list in `feature_names.pkl` and returns class probabilities through `predict_proba`. | Exact raw dataset name/URL/revision, licence, row count, disease counts, symptom counts, cleaning rules, duplicate/conflict audit, and source attribution. |
-| Skin-image classification | The image screen labels the model as **ResNet50 (DermNet NZ)**. The deployed class mapping is loaded from `class_names.pkl`. | Exact dataset package/version or download URL, licence/permission record, class-folder inventory, total/per-class image counts, corrupt/duplicate-image report, patient/case grouping, and split manifest. |
+### Current documented evidence
 
-The statement “ResNet50 (DermNet NZ)” is the model/source label displayed by the application. The repository does not include enough of the original training record to independently establish the exact dataset release, licence, or training split. Confirm those details from the original training workspace before presenting them as reproducible facts.
+- The symptom model's available training-code snapshot records a CSV with a diseases target, a non-stratified 75/25 split with random state 42, and a soft-voting classifier defined using Gaussian Naive Bayes, Logistic Regression, and K-Nearest Neighbours. An older project summary describes a different five-model ensemble. The exact membership of the deployed serialized binary is not independently confirmed by the repository evidence.
+- Historical image-model notes describe transfer learning and filtering/augmentation, while the current UI labels the served image model ResNet50 (DermNet NZ). The exact dataset revision/licence, class filtering, split sizes, training configuration, and checkpoint evidence are not retained.
+- Historical project records report approximately 91% symptom accuracy and 82% image validation accuracy. The corresponding evaluation artifacts and exact test protocol are not available for independent reproduction.
 
-### Why the raw datasets are not committed
+These historical values must remain labelled project-reported. They are not proof of clinical performance.
 
-The repository should contain code, metadata, and evaluation reports—not private, restricted, or non-redistributable medical images or raw data. A future reproducibility package should record the source URL, version/revision, access date, licence/terms, attribution, dataset checksum, and class/row counts without copying restricted source data into GitHub.
+### Reproducibility items still unavailable
 
-## Model-development detail
+For each model, the repository does not currently provide all of the following:
+- Exact dataset URL, revision, license/terms, and attribution record.
+- Dataset audit, exclusions, duplicates/corruption checks, and final label distribution.
+- Complete train/validation/test split counts and leakage-control evidence.
+- Versioned dataset preprocessing and augmentation scripts.
+- Complete training code/configuration, random seeds, hyperparameters, checkpoint selection, and experiment logs.
+- Evaluation report with held-out metrics, confusion matrix, per-class metrics, and reproducible test protocol.
 
-For the focused dataset-to-model record, including documented dataset descriptions, preprocessing, the available symptom train/test split and estimator code, image-model training notes, exported formats and historical accuracy figures, see [Model Development: Datasets, Training, and Exports](MODEL_DEVELOPMENT.md).
-
-That document also records mismatches between historical project summaries and the surviving training-code snapshot. Treat the reported accuracies as project-reported results, not independently reproduced clinical performance.
+Do not infer these details from the serialized model artifacts. If the original training workspace is recovered, add a non-sensitive dataset manifest, split summary, training configuration, and evaluation report. Do not upload restricted medical images or patient-identifying information to GitHub.
 
 ## 3. Model artifacts delivered to production
 
-The following artifacts are tracked with Git LFS:
+The following artifacts are stored at the repository root and tracked through Git LFS:
 
 | Artifact | Runtime purpose |
 |---|---|
-| `final_ensemble.pkl` | Serialized symptom prediction classifier/ensemble |
-| `feature_names.pkl` | Ordered symptom feature schema used to construct model inputs |
-| `imputer.pkl` | Retained preprocessing artifact; the current live inference path does not call it |
-| `skin_model.h5` | TensorFlow/Keras skin-image classifier |
-| `class_names.pkl` | Output-index-to-skin-class mapping |
+| final_ensemble.pkl | Serialized symptom prediction classifier/ensemble |
+| feature_names.pkl | Ordered symptom feature schema used to construct model inputs |
+| imputer.pkl | Retained imputer artifact; the current live symptom inference path does not call it |
+| skin_model.h5 | TensorFlow/Keras skin-image classifier |
+| class_names.pkl | Output-index-to-skin-class mapping |
 
-The public Git tree contains Git LFS pointer files for the large model artifacts. A clone therefore needs Git LFS installed and `git lfs pull` before model loading.
-
-The model artifacts are deployment outputs. They do not, by themselves, preserve the original training dataset, training code, hyperparameters, split methodology, or evaluation evidence.
+A clean clone requires Git LFS and git lfs pull before model loading. The small pointer files in Git are not the model weights themselves.
 
 ## 4. Current inference pipelines
 
-These details are taken from the production `app.py` implementation.
+These details are based on the production app.py and model verification script.
 
 ### 4.1 Symptom prediction
 
-1. Load `final_ensemble.pkl` and `feature_names.pkl` with Joblib.
-2. Create a zero-initialized input row with one position for every feature in the saved feature list.
-3. Ask the next unasked feature in the saved feature-list order. The current application does not perform entropy-based or learned question ranking.
-4. Map each response to the numeric value expected by the current application:
-   - Yes → `1.0`
-   - Probably → `0.8`
-   - Probably Not → `0.2`
-   - No → `0.0`
-5. Call the classifier's `predict_proba` after each answer.
-6. Finish a question round when the maximum class probability reaches the configured `0.87` threshold or when 25 questions have been asked in that round. At the checkpoint, the user can accept the best guess or continue.
-7. Display the highest-probability class and up to three alternatives.
+1. Load final_ensemble.pkl and feature_names.pkl with Joblib.
+2. Create a zero-initialized one-row input vector with one position for every saved feature.
+3. Select the next unasked feature in the saved feature-list order.
+4. Map answers to numeric values:
+   - Yes → 1.0
+   - Probably → 0.8
+   - Probably Not → 0.2
+   - No → 0.0
+5. Obtain probabilities using predict_proba.
+6. A maximum class probability at or above the configured 0.87 threshold can complete the round; otherwise the application offers a checkpoint after 25 questions.
+7. Display the leading class and up to three alternatives.
 
-The deployed application uses the saved feature order as its inference schema. A different feature order, different value encoding, or a mismatched model artifact would invalidate predictions.
+The saved feature order is part of the model contract. A different feature order or answer mapping would make inputs incompatible with the deployed model.
 
 ### 4.2 Skin-image classification
 
 1. Accept a JPG/JPEG or PNG upload.
-2. Decode the image with Pillow.
-3. Convert it to RGB.
-4. Resize it to `160 × 160` pixels.
-5. Convert the pixel array to `float32` and divide by `255.0`, producing values in the `[0, 1]` range.
-6. Add a batch dimension and call the Keras model in inference mode using `skin_model(image, training=False)`.
-7. Map output indices through `class_names.pkl` and display the top five scores.
+2. Decode using Pillow and convert to RGB.
+3. Resize to 160 × 160 pixels.
+4. Convert to a float32 array and divide by 255.0.
+5. Add a batch dimension and call the Keras model in inference mode.
+6. Map output indices using class_names.pkl.
+7. Display the top five model scores.
 
-The production app loads the image model lazily, uses `compile=False`, and installs CPU-only TensorFlow `2.20.0` for the CPU-hosted Streamlit runtime. These are deployment/runtime choices, not claims about the original model-training environment.
+The production runtime uses TensorFlow CPU 2.20.0 and loads the HDF5 model with compile=False. This is a runtime/serving choice; the exact library version used when the model was originally trained/exported is not preserved.
 
-## 5. Training and evaluation record — reproducibility gap
+## 5. Doctor Portal and database lifecycle
 
-The current repository does not include the training notebooks/scripts or the complete evidence needed to recreate the deployed models from raw datasets. The following items are therefore **not independently reproducible from this repository today**:
-
-- Dataset source, exact version/revision, licence and attribution for both model pipelines.
-- Dataset audit reports, class/label distributions, duplicate/corruption checks, and exclusion rules.
-- Train/validation/test split sizes, random seeds, and leakage controls.
-- Dataset-level preprocessing and augmentation code.
-- Candidate models, training configuration, hyperparameters, early-stopping/checkpoint rules, and experiment logs.
-- Final evaluation reports, confusion matrices, per-class precision/recall, macro-F1, and held-out test protocol.
-
-The README reports project-level figures of approximately **91% symptom-prediction accuracy** and **82% skin-image classification accuracy**. These are historical project-reported figures. A corresponding evaluation report and test protocol are not included in this repository, so readers cannot independently reproduce or audit those values from the public files alone. They must not be represented as clinical performance.
-
-### Artifacts to add if the original training workspace is available
-
-To close this reproducibility gap in a future documentation update, export a small, non-sensitive record for each model:
-
-- `dataset_manifest.md`: dataset name, source URL, version/revision, licence/terms, attribution, access date, checksum, and dataset size.
-- `dataset_audit.md`: schema/classes, class distribution, missing/corrupt records, duplicate/conflicting-label checks, exclusions, and known limitations.
-- `split_manifest.csv` or a split summary: train/validation/test counts, random seed, grouping strategy, and leakage checks. Do not publish patient-identifying metadata.
-- `preprocessing.md` and the versioned preprocessing code: exact transforms and feature mapping.
-- `training_config.yaml`: architecture, parameters, hyperparameters, seed, environment/library versions, and checkpoint/selection criteria.
-- `evaluation_report.md`: held-out test metrics, confusion matrix, per-class precision/recall, macro-F1, test methodology, and limitations.
-
-Do not invent these fields from the deployed model files. If the original workspace no longer exists, record the missing provenance as unavailable rather than reverse-engineering or guessing it.
-
-## 6. Doctor Portal and data storage
-
-The Doctor Portal is a contribution and storage workflow. It does not approve or verify professional credentials and does not automatically feed new contributions into model training.
+The Doctor Portal stores submitted profile and contribution data. It does not independently verify qualifications, provide a clinical approval process, or update the prediction models.
 
 ### Neon PostgreSQL
 
-The schema in `database/schema.sql` defines:
+The schema in database/schema.sql defines:
+- doctors: profile fields, normalized unique email, Argon2id password hash, and degree-file reference/metadata.
+- symptom_contributions: one parent record per symptom submission.
+- symptom_contribution_items: ordered symptom entries linked to a parent submission.
+- image_contributions: disease label, doctor reference, metadata, and MongoDB GridFS file ID.
 
-- `doctors`: profile fields, normalized email, password hash, degree-file reference and upload metadata.
-- `symptom_contributions`: doctor-linked disease and contribution records.
-- `symptom_contribution_items`: individual symptom entries linked to a symptom contribution.
-- `image_contributions`: doctor-linked disease, image metadata and GridFS file reference.
+The schema grants the restricted application role data-manipulation permissions; schema ownership is separate.
 
 ### MongoDB Atlas GridFS
 
-The application stores binary files in two GridFS buckets:
+Binary files are stored in two buckets:
+- doctor_degrees: uploaded degree PDFs.
+- contribution_images: labelled images submitted through the portal.
 
-- `doctor_degrees`: uploaded degree PDFs.
-- `contribution_images`: uploaded labelled images.
+PostgreSQL retains structured data and GridFS file IDs. The application uses Argon2id for passwords, validates file types/signatures/sizes, and attempts compensating GridFS deletion when a subsequent PostgreSQL insert fails.
 
-The PostgreSQL records retain file IDs and metadata; the binary content is stored in GridFS. The service layer includes cleanup/compensating-delete logic for failures between file upload and relational metadata insertion.
+### Registration and upload limits
 
-### Authentication and uploads
+- Password minimum: 12 characters.
+- Degree document: PDF, maximum 10 MiB.
+- Contribution image: PNG/JPEG, maximum 5 MiB.
+- The uploaded degree document is not independently validated by a regulator or credential authority.
+- Email verification, password reset, and a separate administrator approval workflow are not implemented.
+- Contributions do not automatically retrain the models.
 
-- Doctor passwords are hashed with Argon2id; plaintext passwords are not stored.
-- Registration requires a password of at least 12 characters.
-- Degree upload: PDF, maximum 10 MB.
-- Contribution image upload: JPEG/PNG, maximum 5 MB.
-- The uploaded degree document is not independently validated by a credential authority.
-- Symptom and image contributions are stored for future review; they do not trigger model retraining.
+See [Database Setup and Data Model](DATABASE.md) for detailed fields and setup steps.
 
-## 7. Production architecture and deployment
+## 6. Production architecture and release lifecycle
 
-The deployed system is a single Streamlit application with local model inference and database-backed Doctor Portal operations:
+The current production deployment uses a dedicated AWS EC2 instance in ap-southeast-2.
 
-```text
-Browser
-  |
-  v
-Streamlit Community Cloud (app.py, main branch)
-  |                         |
-  |                         +--> Joblib symptom model + feature schema
-  |                         |
-  |                         +--> TensorFlow/Keras image model + class map
-  |
-  +--> Neon PostgreSQL (profiles, contributions, file metadata)
-  |
-  +--> MongoDB Atlas GridFS (degree PDFs, contribution images)
-```
+~~~mermaid
+flowchart TB
+    Browser --> DuckDNS
+    DuckDNS --> Nginx[Nginx HTTPS reverse proxy on EC2]
+    Nginx --> App[Dockerized Streamlit app on 127.0.0.1:8501]
+    App --> Models[Git LFS model artifacts]
+    App --> PG[(Neon PostgreSQL)]
+    App --> Mongo[(MongoDB Atlas GridFS)]
+    GitHub[GitHub repository] --> Actions[GitHub Actions unit tests]
+    GitHub --> Jenkins[Jenkins SCM polling on EC2]
+    Jenkins --> ECR[Amazon ECR commit-SHA image]
+    Jenkins --> SSM[AWS SSM SecureString]
+    ECR --> Deploy[Production Docker container]
+    SSM --> Deploy
+~~~
 
-### Configuration
+### Production components
 
-The application reads database connection values from Streamlit secrets or the following environment variables:
+- Nginx receives public HTTP/HTTPS traffic and proxies requests to the Streamlit container.
+- The application container binds to 127.0.0.1:8501; the public entry point is Nginx.
+- DuckDNS maps disease-akinator.duckdns.org to the current EC2 public IPv4 address.
+- Let's Encrypt/Certbot supplies HTTPS.
+- Neon PostgreSQL and MongoDB Atlas are external managed data services.
+- Amazon ECR stores images tagged with the full source commit SHA.
+- AWS SSM Parameter Store stores the production container environment as SecureString.
+- An EC2 instance role provides scoped ECR and SSM access.
 
-- `DISEASE_AKINATOR_POSTGRES_URL`
-- `DISEASE_AKINATOR_MONGODB_URI`
+The current design is a single-instance setup. It does not use ECS, Fargate, an Application Load Balancer, or a database server on the EC2 host.
 
-Local development uses an ignored `.streamlit/secrets.toml`. Production credentials are configured in the Streamlit Cloud app settings. Secrets must never be committed to GitHub or pasted into issues, screenshots, or documentation.
+### CI/CD release lifecycle
 
-### Deployment sequence used
+1. Developer pushes a feature branch and opens a PR into develop.
+2. GitHub Actions compiles the Python packages and runs the selected unit-test modules.
+3. A separate release PR moves develop into main.
+4. Jenkins polls SCM at the configured five-minute cadence while its EC2 host is running.
+5. Jenkins checks out Git LFS assets, compiles and tests, builds the Docker image, validates model loading/synthetic inference, and runs a Streamlit health smoke test.
+6. For main, Jenkins pushes an ECR image tagged with the full Git commit SHA.
+7. Jenkins reads the SSM SecureString parameter into a permission-restricted temporary environment file.
+8. Jenkins pulls the release image, replaces the application container, and waits for the Docker health check.
+9. If the new container does not become healthy, Jenkins attempts to restart the previous image when one is available.
 
-1. Keep changes isolated on a feature/release branch.
-2. Validate local environment and model artifact loading.
-3. Run automated tests.
-4. Deploy a separate staging app from the feature branch.
-5. Verify diagnosis, registration/login, both contribution flows, GridFS, dashboard values, and persistence after reboot.
-6. Merge the tested release into `main`.
-7. Configure rotated production database credentials in Streamlit Cloud Secrets.
-8. Verify the existing production app and its feature flows.
+See [CI/CD Workflow](CI_CD.md), [Deployment Guide](DEPLOYMENT.md), and [Operations Runbook](OPERATIONS.md).
 
-### Production links
+## 7. Configuration and on-demand operations
 
-- Public repository: https://github.com/atharva315/Disease-Akinator
-- Production app: https://disease-akinator-we7wpcyvg2tc4niefueebu.streamlit.app/
-- Production merge PR: https://github.com/atharva315/Disease-Akinator/pull/2
+The application reads these environment variables:
+- DISEASE_AKINATOR_POSTGRES_URL
+- DISEASE_AKINATOR_MONGODB_URI
+- DISEASE_AKINATOR_MONGODB_DATABASE (optional; defaults to disease_akinator)
+
+Local Streamlit configuration can alternatively use [postgres].url, [mongodb].uri, and optional [mongodb].database in .streamlit/secrets.toml.
+
+Production values are stored in the AWS SSM SecureString parameter documented in the deployment guide. Secret values must never be added to GitHub or displayed in logs.
+
+The EC2 instance is intentionally stopped when the application is not required. While stopped, the public app and Jenkins are unavailable, although GitHub Actions continues to operate. The instance's automatically assigned public IPv4 address can change after a restart. Operators must update DuckDNS and add the new IP as a /32 MongoDB Atlas Network Access entry before expecting the public app and Doctor Portal database access to work. EBS storage and other retained AWS resources may continue to incur charges.
 
 ## 8. Validation status
 
-The project handoff records:
+The project release has been manually validated at the application and deployment layers:
+- Symptom prediction and skin-image classification were tested on the production app.
+- Doctor Portal registration, login, dashboard statistics, and contribution submission were tested.
+- GitHub Actions pull-request checks passed through the feature → develop → main flow.
+- Jenkins automatically detected a main-branch SCM change, completed the pipeline, pushed the commit-tagged image to ECR, pulled it onto EC2, and deployed it.
+- The deployed container inspection confirmed the intended Git-SHA-tagged image was running with Docker health status healthy.
+- The public HTTPS application was checked after an EC2 stop/start and DNS/network access update.
 
-- 31 local automated tests passed.
-- Staging verification of symptom prediction and skin-image classification.
-- Staging verification of doctor registration/login, symptom contributions, image contributions/GridFS, and dashboard statistics.
-- Staging data remained available after an application reboot.
-- Production deployment and the same feature-level smoke checks were subsequently confirmed by the project owner.
+These checks validate the software/deployment workflow. They do not prove clinical validity or independently reproduce the historical model accuracy values.
 
-These are deployment validation results, not proof of clinical validity or a substitute for the missing model-training evaluation report.
+## 9. Known limitations and next provenance gate
 
-## 9. Known limitations and next documentation gate
+The repository documents the serving path, application data lifecycle, and production deployment. The original dataset-to-training process remains only partially reproducible because the raw datasets, full preparation/training workspaces, split manifests, and evaluation reports are not included.
 
-The public repository now documents the deployed application from runtime input through storage and production deployment. **The original dataset-to-training process is only partially documented because its source datasets, preparation scripts, split manifests, training runs, and evaluation reports are not in the repository.**
-
-The next documentation gate is to recover the original Kaggle/Colab training workspace or experiment exports and add the non-sensitive provenance/evaluation records listed in Section 5. Until then, the project is deployable and its inference path is documented, but training is not fully reproducible from a clean GitHub clone.
+If the original training workspace is recovered, add the non-sensitive provenance and evaluation material described in MODEL_DEVELOPMENT.md. Until then, preserve the model metrics as project-reported results and do not claim independently reproducible or clinically validated performance.
