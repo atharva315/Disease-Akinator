@@ -185,17 +185,19 @@ Check that the five model files are real LFS objects rather than small pointer f
 
 ### 3. Configure local database credentials
 
-Copy `.env.example` to `.env` and replace the placeholders with credentials for your own isolated development databases. The `.env` file is ignored by Git.
+For **direct Streamlit development**, use `.streamlit/secrets.toml` as shown below, or export the environment variables in your shell before starting Streamlit. The application does not automatically load a `.env` file.
+
+For **Docker**, copy `.env.example` to `.env`, replace the placeholders with credentials for your own isolated development databases, and pass it with Docker's `--env-file` option. The populated `.env` file is ignored by Git.
 
     cp .env.example .env
 
-The application reads:
+The application reads these environment variables:
 
 - `DISEASE_AKINATOR_POSTGRES_URL`
 - `DISEASE_AKINATOR_MONGODB_URI`
 - `DISEASE_AKINATOR_MONGODB_DATABASE` (optional; defaults to `disease_akinator`)
 
-Alternatively, local Streamlit development can use `.streamlit/secrets.toml`:
+For direct Streamlit development, create `.streamlit/secrets.toml`:
 
     [postgres]
     url = "postgresql://<user>:<password>@<host>/<database>?sslmode=require"
