@@ -58,6 +58,11 @@ def main() -> int:
     print("Python       :", sys.version.split()[0])
     print("NumPy        :", np.__version__)
     print("Scikit-learn :", sklearn.__version__)
+    if sklearn.__version__ != "1.6.1":
+        raise RuntimeError(
+            "Model artifacts were serialized with scikit-learn 1.6.1; "
+            f"the installed version is {sklearn.__version__}. Install the pinned requirements.txt."
+        )
     print("Joblib       :", joblib.__version__)
     print("TensorFlow   :", tf.__version__)
 

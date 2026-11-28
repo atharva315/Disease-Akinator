@@ -64,6 +64,32 @@ def _get_uri() -> str:
     return uri.strip()
 
 
+def _get_database_name() -> str:
+    """Read the MongoDB database name, defaulting to the production name."""
+    env_database = os.getenv("DISEASE_AKINATOR_MONGODB_DATABASE")
+    if env_database and env_database.strip():
+        return env_database.strip()
+
+    try:
+        import streamlit as st
+
+        mongodb_settings = st.secrets.get("mongodb", {})
+    except Exception:
+        mongodb_settings = {}
+
+    if not hasattr(mongodb_settings, "get"):
+        raise MongoConfigurationError(
+            "Streamlit secret [mongodb] must be a configuration section."
+        )
+
+    database_name = mongodb_settings.get("database", DATABASE_NAME)
+    if not isinstance(database_name, str) or not database_name.strip():
+        raise MongoConfigurationError(
+            "MongoDB database name must be a non-empty string."
+        )
+    return database_name.strip()
+
+
 @lru_cache(maxsize=4)
 def _cached_client(uri: str) -> MongoClient:
     """Reuse a thread-safe MongoClient and its connection pool per URI."""
@@ -91,7 +117,7 @@ def get_mongo_client(uri: str | None = None) -> MongoClient:
 
 def get_mongo_database(uri: str | None = None):
     """Return the configured Disease Akinator database."""
-    return get_mongo_client(uri)[DATABASE_NAME]
+    return get_mongo_client(uri)[_get_database_name()]
 
 
 def check_mongodb_connection(uri: str | None = None) -> dict[str, Any]:
@@ -100,7 +126,7 @@ def check_mongodb_connection(uri: str | None = None) -> dict[str, Any]:
     result = client.admin.command("ping")
     return {
         "connected": result.get("ok") == 1.0,
-        "database": DATABASE_NAME,
+        "database": _get_database_name(),
         "server": "MongoDB Atlas",
     }
 
@@ -281,5 +307,4 @@ def delete_file(bucket_name: str, file_id: str) -> bool:
 
     bucket.delete(object_id)
     return True
-
 
