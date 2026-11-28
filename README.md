@@ -243,6 +243,10 @@ These are project-reported model evaluation figures, not independent clinical va
 - Do not upload identifiable patient information.
 - Doctor registration and document upload do not constitute professional credential verification.
 
+## Production CI/CD Deployment
+
+Changes merged into `main` trigger Jenkins to validate the project, build a Docker image, push the commit-tagged image to Amazon ECR, and deploy it to the dedicated AWS EC2 instance. Production environment variables are retrieved securely from AWS Systems Manager Parameter Store.
+
 ## License
 
 No license is currently specified. Unless a license is added, the repository should be treated as source-available for viewing, not as granting permission to reuse, modify, or redistribute the code.
